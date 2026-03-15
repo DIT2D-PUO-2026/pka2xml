@@ -1,0 +1,17 @@
+{
+  "name": "pka2xml-website",
+  "version": "1.0.0",
+  "description": "VitePress documentation and tool website for pka2xml",
+  "scripts": {
+    "docs:dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "@types/pako": "^2.0.4",
+    "vitepress": "^1.6.3"
+  },
+  "dependencies": {
+    "pako": "^2.1.0"
+  }
+}

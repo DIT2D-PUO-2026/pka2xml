@@ -1,2 +1,7 @@
 patch
 pka2xml
+
+# VitePress / website
+website/node_modules
+website/.vitepress/dist
+website/.vitepress/cache

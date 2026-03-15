@@ -1,0 +1,165 @@
+/* Custom styles for pka2xml VitePress site */
+
+.pka-converter {
+  --pka-border: var(--vp-c-border);
+  --pka-bg: var(--vp-c-bg-soft);
+  --pka-bg-elev: var(--vp-c-bg-elev);
+  --pka-radius: 8px;
+}
+
+.pka-converter .upload-zone {
+  border: 2px dashed var(--pka-border);
+  border-radius: var(--pka-radius);
+  padding: 32px;
+  text-align: center;
+  background: var(--pka-bg);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.pka-converter .upload-zone:hover,
+.pka-converter .upload-zone.drag-over {
+  border-color: var(--vp-c-brand-1);
+  background: var(--pka-bg-elev);
+}
+
+.pka-converter .upload-icon {
+  font-size: 2.5rem;
+  margin-bottom: 8px;
+}
+
+.pka-converter .actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.pka-converter .btn {
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.pka-converter .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pka-converter .btn-primary {
+  background: var(--vp-c-brand-1);
+  color: #fff;
+}
+
+.pka-converter .btn-primary:not(:disabled):hover {
+  background: var(--vp-c-brand-2);
+}
+
+.pka-converter .btn-secondary {
+  background: var(--vp-c-bg-elev);
+  color: var(--vp-c-text-1);
+  border: 1px solid var(--pka-border);
+}
+
+.pka-converter .btn-secondary:not(:disabled):hover {
+  border-color: var(--vp-c-brand-1);
+  color: var(--vp-c-brand-1);
+}
+
+.pka-converter .status-box {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: var(--pka-radius);
+  font-size: 0.9rem;
+}
+
+.pka-converter .status-loading {
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pka-converter .status-error {
+  background: #fff1f1;
+  color: #d32f2f;
+  border: 1px solid #ffcdd2;
+}
+
+.dark .pka-converter .status-error {
+  background: #3b1a1a;
+  color: #ef9a9a;
+  border-color: #5c2626;
+}
+
+.pka-converter .status-success {
+  background: #f1fff5;
+  color: #1b5e20;
+  border: 1px solid #c8e6c9;
+}
+
+.dark .pka-converter .status-success {
+  background: #1a3b22;
+  color: #a5d6a7;
+  border-color: #265c33;
+}
+
+.pka-converter .xml-preview {
+  margin-top: 20px;
+  border-radius: var(--pka-radius);
+  background: var(--pka-bg);
+  border: 1px solid var(--pka-border);
+}
+
+.pka-converter .xml-preview-header {
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--vp-c-text-2);
+  border-bottom: 1px solid var(--pka-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pka-converter .xml-preview pre {
+  padding: 16px;
+  margin: 0;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--vp-c-border);
+  border-top-color: var(--vp-c-brand-1);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Feature cards on home page */
+.feature-tag {
+  display: inline-block;
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
