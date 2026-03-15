@@ -23,6 +23,8 @@ export default defineConfig({
     ["meta", { property: "og:description", content: siteDescription }],
     ["meta", { property: "og:url", content: siteUrl }],
     ["meta", { property: "og:image", content: previewImageUrl }],
+    ["meta", { property: "og:image:secure_url", content: previewImageUrl }],
+    ["meta", { property: "og:image:type", content: "image/png" }],
     ["meta", { property: "og:image:width", content: "1200" }],
     ["meta", { property: "og:image:height", content: "630" }],
 
