@@ -7,6 +7,21 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/pka2xml/favicon.svg' }],
+
+    // Open Graph
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { property: 'og:title', content: 'pka2xml' }],
+    ['meta', { property: 'og:description', content: 'Decrypt and encrypt Packet Tracer .pka / .pkt files online — no installation required.' }],
+    ['meta', { property: 'og:url', content: 'https://dit2d-puo-2026.github.io/pka2xml/' }],
+    ['meta', { property: 'og:image', content: 'https://dit2d-puo-2026.github.io/pka2xml/meta.svg' }],
+    ['meta', { property: 'og:image:width', content: '1200' }],
+    ['meta', { property: 'og:image:height', content: '630' }],
+
+    // Twitter / X Card
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:title', content: 'pka2xml' }],
+    ['meta', { name: 'twitter:description', content: 'Decrypt and encrypt Packet Tracer .pka / .pkt files online — no installation required.' }],
+    ['meta', { name: 'twitter:image', content: 'https://dit2d-puo-2026.github.io/pka2xml/meta.svg' }],
   ],
 
   themeConfig: {
