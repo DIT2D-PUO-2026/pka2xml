@@ -227,8 +227,17 @@ const anyPatchEnabled = computed(
 )
 
 // ── helpers ─────────────────────────────────────────────────────────────────
+const SECONDS_PER_HOUR = 3600
+const SECONDS_PER_MINUTE = 60
+const MS_PER_SECOND = 1000
+
 function toMs(t: TimePatch): number {
-  return ((t.h * 3600) + (t.m * 60) + t.s) * 1000
+  return ((t.h * SECONDS_PER_HOUR) + (t.m * SECONDS_PER_MINUTE) + t.s) * MS_PER_SECOND
+}
+
+/** Escape special regex characters so an attribute name is matched literally. */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function formatSize(bytes: number): string {
@@ -261,7 +270,7 @@ function triggerDownload(blob: Blob, filename: string) {
 
 /** Replace an XML attribute value in an XML string, e.g. COUNTDOWNLEFT="..." */
 function replaceXmlAttr(xml: string, attr: string, newValue: string): string {
-  const re = new RegExp(`(\\b${attr}=")[^"]*(")`,'g')
+  const re = new RegExp(`(\\b${escapeRegex(attr)}=")[^"]*(")`,'g')
   return xml.replace(re, `$1${newValue}$2`)
 }
 
