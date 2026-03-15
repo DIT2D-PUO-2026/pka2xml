@@ -42,6 +42,7 @@ export default defineConfig({
       { text: "Home", link: "/" },
       { text: "Guide", link: "/guide" },
       { text: "Tool", link: "/tool" },
+      { text: "Patcher", link: "/patcher" },
     ],
 
     sidebar: [
@@ -54,7 +55,10 @@ export default defineConfig({
       },
       {
         text: "Tools",
-        items: [{ text: "PKA / PKT Converter", link: "/tool" }],
+        items: [
+          { text: "PKA / PKT Converter", link: "/tool" },
+          { text: "PKA Patcher", link: "/patcher" },
+        ],
       },
     ],
 
