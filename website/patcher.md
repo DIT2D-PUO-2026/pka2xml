@@ -20,7 +20,7 @@ The file is decrypted to XML, the selected variables are patched in-memory, and 
 
 | Label | XML attribute | Description |
 |-------|---------------|-------------|
-| **Expired Activity Bypass** | `COUNTDOWN_EXPIRED` | `0` = not expired &nbsp;/&nbsp; `1` = expired. Uncheck to bypass expiry. |
+| **Expired Activity Bypass** | `COUNTDOWN_EXPIRED` | `0` = not expired &nbsp;/&nbsp; `1` = expired. Uncheck **Mark as expired** inside the card to clear the expiry flag (`0`) and bypass the check. |
 | **Default Time** | `COUNTDOWNMS` | Total activity timer duration in milliseconds. |
 | **Time Left** | `COUNTDOWNLEFT` | Remaining countdown time in milliseconds. |
 

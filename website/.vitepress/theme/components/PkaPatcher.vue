@@ -72,7 +72,7 @@
             <span class="patch-card__title">Expired Activity Bypass</span>
           </label>
           <p class="patch-card__desc">
-            Bypasses the activity expiry check. When enabled, the activity will be treated as <em>not expired</em>.
+            Sets the <code>COUNTDOWN_EXPIRED</code> flag. Uncheck <strong>Mark as expired</strong> to clear the flag (<code>0</code>) and bypass the expiry check, or check it to mark the activity as expired (<code>1</code>).
           </p>
           <div v-if="patches.expired.enabled" class="patch-card__body">
             <label class="toggle-label">
@@ -269,9 +269,11 @@ function triggerDownload(blob: Blob, filename: string) {
 }
 
 /** Replace an XML attribute value in an XML string, e.g. COUNTDOWNLEFT="..." */
-function replaceXmlAttr(xml: string, attr: string, newValue: string): string {
+function replaceXmlAttr(xml: string, attr: string, newValue: string): { xml: string; count: number } {
+  let count = 0
   const re = new RegExp(`(\\b${escapeRegex(attr)}=")[^"]*(")`,'g')
-  return xml.replace(re, `$1${newValue}$2`)
+  const result = xml.replace(re, (_match, p1, p2) => { count++; return `${p1}${newValue}${p2}` })
+  return { xml: result, count }
 }
 
 // ── file input ───────────────────────────────────────────────────────────────
@@ -289,9 +291,27 @@ function onDrop(e: DragEvent) {
 }
 
 function setFile(file: File) {
+  if (!/\.(pka|pkt)$/i.test(file.name)) {
+    errorMsg.value = `Unsupported file: "${file.name}". Please select a .pka or .pkt file.`
+    selectedFile.value = null
+    return
+  }
   selectedFile.value = file
   errorMsg.value = ''
   successMsg.value = ''
+}
+
+function resetPatches() {
+  patches.expired.enabled = false
+  patches.expired.value = false
+  patches.defaultTime.enabled = false
+  patches.defaultTime.h = 0
+  patches.defaultTime.m = 0
+  patches.defaultTime.s = 0
+  patches.timeLeft.enabled = false
+  patches.timeLeft.h = 0
+  patches.timeLeft.m = 0
+  patches.timeLeft.s = 0
 }
 
 function reset() {
@@ -300,6 +320,7 @@ function reset() {
   successMsg.value = ''
   xmlContent.value = ''
   step.value = 'upload'
+  resetPatches()
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -307,6 +328,7 @@ function goBack() {
   step.value = 'upload'
   errorMsg.value = ''
   successMsg.value = ''
+  resetPatches()
 }
 
 // ── decrypt ──────────────────────────────────────────────────────────────────
@@ -350,15 +372,26 @@ async function applyPatches() {
 
   try {
     let xml = xmlContent.value
+    const noMatch: string[] = []
 
     if (patches.expired.enabled) {
-      xml = replaceXmlAttr(xml, 'COUNTDOWN_EXPIRED', patches.expired.value ? '1' : '0')
+      const { xml: patched, count } = replaceXmlAttr(xml, 'COUNTDOWN_EXPIRED', patches.expired.value ? '1' : '0')
+      xml = patched
+      if (count === 0) noMatch.push('Expired Activity Bypass (COUNTDOWN_EXPIRED not found)')
     }
     if (patches.defaultTime.enabled) {
-      xml = replaceXmlAttr(xml, 'COUNTDOWNMS', String(toMs(patches.defaultTime)))
+      const { xml: patched, count } = replaceXmlAttr(xml, 'COUNTDOWNMS', String(toMs(patches.defaultTime)))
+      xml = patched
+      if (count === 0) noMatch.push('Default Time (COUNTDOWNMS not found)')
     }
     if (patches.timeLeft.enabled) {
-      xml = replaceXmlAttr(xml, 'COUNTDOWNLEFT', String(toMs(patches.timeLeft)))
+      const { xml: patched, count } = replaceXmlAttr(xml, 'COUNTDOWNLEFT', String(toMs(patches.timeLeft)))
+      xml = patched
+      if (count === 0) noMatch.push('Time Left (COUNTDOWNLEFT not found)')
+    }
+
+    if (noMatch.length === (patches.expired.enabled ? 1 : 0) + (patches.defaultTime.enabled ? 1 : 0) + (patches.timeLeft.enabled ? 1 : 0)) {
+      throw new Error(`None of the selected attributes were found in the file. Make sure it is a valid Packet Tracer activity file with countdown settings.`)
     }
 
     // Compress and re-encrypt
@@ -377,9 +410,14 @@ async function applyPatches() {
     const resultB64 = await response.text()
     const resultBlob = await b64toBlob(resultB64)
 
-    const outName = selectedFile.value.name.replace(/\.(pka|pkt)$/i, '.patched.pka')
+    const origExt = selectedFile.value.name.match(/\.(pka|pkt)$/i)?.[1]?.toLowerCase() ?? 'pka'
+    const outName = selectedFile.value.name.replace(/\.(pka|pkt)$/i, `.patched.${origExt}`)
     triggerDownload(resultBlob, outName)
-    successMsg.value = `Patches applied! "${outName}" has been downloaded.`
+
+    const warnMsg = noMatch.length > 0
+      ? ` Warning: some attributes were not found and skipped: ${noMatch.join(', ')}.`
+      : ''
+    successMsg.value = `Patches applied! "${outName}" has been downloaded.${warnMsg}`
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     errorMsg.value = `Failed to apply patches: ${msg}`
