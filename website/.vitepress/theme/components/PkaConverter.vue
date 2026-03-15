@@ -223,14 +223,15 @@ async function doAction(action: 'decode' | 'encode' | 'retrofit') {
       const xmlStr = await file.text()
 
       // Compress the XML before sending (server expects compressed data)
-      const compressed = deflate(new TextEncoder().encode(xmlStr))
+      const encodedXml = new TextEncoder().encode(xmlStr)
+      const compressed = deflate(encodedXml)
       const compressedBlob = new Blob([compressed], { type: 'application/octet-stream' })
 
       const b64 = await toBase64(compressedBlob)
 
       const response = await fetch(API_URL, {
         method: 'POST',
-        body: JSON.stringify({ file: b64, action: 'encode', length: xmlStr.length }),
+        body: JSON.stringify({ file: b64, action: 'encode', length: encodedXml.length }),
       })
 
       if (!response.ok) throw new Error(`Server error: ${response.status}`)
@@ -259,8 +260,36 @@ function triggerDownload(blob: Blob, filename: string) {
 
 async function copyXml() {
   if (!xmlPreview.value) return
-  await navigator.clipboard.writeText(xmlPreview.value)
-  copied.value = true
-  setTimeout(() => { copied.value = false }, 2000)
+  // Prefer Clipboard API when available
+   if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+     try {
+       await navigator.clipboard.writeText(xmlPreview.value)
+       copied.value = true
+       setTimeout(() => { copied.value = false }, 2000)
+       return
+     } catch (err: unknown) {
+       const msg = err instanceof Error ? err.message : String(err)
+       errorMsg.value = `Failed to copy XML to clipboard: ${msg}`
+     }
+   } else {
+     errorMsg.value = 'Clipboard copying is not supported in this browser. You can still copy the XML manually.'
+   }
+   // Fallback: create a temporary textarea so the user can manually copy
+   const textarea = document.createElement('textarea')
+   textarea.value = xmlPreview.value
+   textarea.setAttribute('readonly', '')
+   textarea.style.position = 'fixed'
+   textarea.style.top = '-9999px'
+   document.body.appendChild(textarea)
+   textarea.select()
+   try {
+     document.execCommand('copy')
+     copied.value = true
+     setTimeout(() => { copied.value = false }, 2000)
+   } catch {
+     // Ignore execCommand errors; user can still manually copy from the selected textarea
+   } finally {
+     document.body.removeChild(textarea)
+   }
 }
 </script>
