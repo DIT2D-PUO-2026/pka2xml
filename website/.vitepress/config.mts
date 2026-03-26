@@ -41,7 +41,7 @@ export default defineConfig({
   transformHead({ pageData }) {
     const path = pageData.relativePath
       .replace(/index\.md$/, "")
-      .replace(/\.md$/, ".html");
+      .replace(/\.md$/, "/");
     return [["meta", { property: "og:url", content: `${siteUrl}${path}` }]];
   },
 
