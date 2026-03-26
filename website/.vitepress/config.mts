@@ -5,6 +5,7 @@ const siteDescription =
   "Decrypt and encrypt Packet Tracer .pka / .pkt files online — no installation required.";
 const siteUrl = "https://dit2d-puo-2026.github.io/pka2xml/";
 const previewImageUrl = `${siteUrl}meta.png`;
+const previewImageAlt = "pka2xml – Packet Tracer File Converter preview";
 
 export default defineConfig({
   title: siteTitle,
@@ -19,21 +20,30 @@ export default defineConfig({
 
     // Open Graph
     ["meta", { property: "og:type", content: "website" }],
+    ["meta", { property: "og:site_name", content: siteTitle }],
     ["meta", { property: "og:title", content: siteTitle }],
     ["meta", { property: "og:description", content: siteDescription }],
-    ["meta", { property: "og:url", content: siteUrl }],
     ["meta", { property: "og:image", content: previewImageUrl }],
     ["meta", { property: "og:image:secure_url", content: previewImageUrl }],
     ["meta", { property: "og:image:type", content: "image/png" }],
     ["meta", { property: "og:image:width", content: "1200" }],
     ["meta", { property: "og:image:height", content: "630" }],
+    ["meta", { property: "og:image:alt", content: previewImageAlt }],
 
     // Twitter / X Card
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
     ["meta", { name: "twitter:title", content: siteTitle }],
     ["meta", { name: "twitter:description", content: siteDescription }],
     ["meta", { name: "twitter:image", content: previewImageUrl }],
+    ["meta", { name: "twitter:image:alt", content: previewImageAlt }],
   ],
+
+  transformHead({ pageData }) {
+    const path = pageData.relativePath
+      .replace(/index\.md$/, "")
+      .replace(/\.md$/, "/");
+    return [["meta", { property: "og:url", content: `${siteUrl}${path}` }]];
+  },
 
   themeConfig: {
     logo: "/logo.svg",
