@@ -255,8 +255,8 @@ function buildPathDict(
   return d
 }
 
-/** Matches any character outside the printable ASCII + whitespace range (mirrors check_items.py re.sub). */
-const NON_PRINTABLE_CHARS_REGEX = /[^\x20-\x7E\t\n\r]/g
+/** Matches any character outside Python string.printable (mirrors check_items.py re.sub). */
+const NON_PRINTABLE_CHARS_REGEX = /[^\x20-\x7E\t\n\r\x0b\x0c]/g
 
 function parseXml(xmlStr: string): Results {
   // Strip non-printable characters (mirrors the re.sub in check_items.py)
@@ -342,6 +342,8 @@ function setFile(file: File) {
   if (!/\.(pka|pkt|xml)$/i.test(file.name)) {
     errorMsg.value = `Unsupported file: "${file.name}". Please select a .pka, .pkt, or .xml file.`
     selectedFile.value = null
+    results.value = null
+    if (fileInput.value) fileInput.value.value = ''
     return
   }
   selectedFile.value = file
