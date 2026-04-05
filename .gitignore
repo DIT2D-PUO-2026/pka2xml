@@ -1,6 +1,10 @@
 patch
 pka2xml
 
+# generated graph files
+network.dot
+network.png
+
 # VitePress / website
 website/node_modules
 website/.vitepress/dist
