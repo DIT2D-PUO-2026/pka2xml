@@ -255,9 +255,12 @@ function buildPathDict(
   return d
 }
 
+/** Matches any character outside the printable ASCII + whitespace range (mirrors check_items.py re.sub). */
+const NON_PRINTABLE_CHARS_REGEX = /[^\x20-\x7E\t\n\r]/g
+
 function parseXml(xmlStr: string): Results {
   // Strip non-printable characters (mirrors the re.sub in check_items.py)
-  const cleaned = xmlStr.replace(/[^\x20-\x7E\t\n\r]/g, '')
+  const cleaned = xmlStr.replace(NON_PRINTABLE_CHARS_REGEX, '')
 
   const parser = new DOMParser()
   const doc = parser.parseFromString(cleaned, 'application/xml')
