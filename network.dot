@@ -1,0 +1,15 @@
+graph G {
+	node [style=rounded,shape=record];
+	layout=twopi;
+	graph [pad="1", ranksep="1.5"];
+
+	"Employee"--"Main" [taillabel=""; headlabel="192.168.10.66/255.255.255.224"];
+	"Guest"--"Main" [taillabel=""; headlabel="192.168.10.162/255.255.255.224"];
+	"Main"--"ISP" [taillabel=""; headlabel=""];
+	"ISP"--"Swift_Server (www.swift.com)" [taillabel="192.168.10.225/255.255.255.224"; headlabel="192.168.10.226/255.255.255.224"];
+	"Manager"--"Main" [taillabel=""; headlabel="192.168.10.34/255.255.255.224"];
+	"PC0"--"Guest" [taillabel="<DHCP>/None"; headlabel=""];
+	"PC1"--"Manager" [taillabel="192.168.0.3/255.255.255.224"; headlabel=""];
+	"PC2"--"Employee" [taillabel="<DHCP>/None"; headlabel=""];
+	"PC3"--"Main" [taillabel=""; headlabel=""];
+}
