@@ -187,7 +187,8 @@
 import { ref, reactive, computed } from 'vue'
 import { inflate, deflate } from 'pako'
 
-const API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
+const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
+const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
 const BLOB_URL_REVOKE_DELAY_MS = 10_000
 
 // ── state ──────────────────────────────────────────────────────────────────

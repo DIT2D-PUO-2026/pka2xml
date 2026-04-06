@@ -46,6 +46,8 @@ jobs:
 
       - name: Build VitePress
         working-directory: website
+        env:
+          VITE_PKA2XML_API_URL: ${{ vars.PKA2XML_API_URL }}
         run: npm run docs:build
 
       - name: Upload artifact

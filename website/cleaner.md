@@ -10,6 +10,12 @@ Use this tool to **remove pka2xml watermarks and traces** from Packet Tracer `.p
 The file is decrypted, cleaned, and re-encrypted entirely in-memory. Nothing is retained server-side.
 :::
 
+::: warning Backend Endpoint Note
+If traces are still present after cleaning, your API endpoint is likely running an old backend that re-injects the watermark during encode.
+
+Set a repository variable named `PKA2XML_API_URL` to a watermark-free backend endpoint, then redeploy Pages so the website uses that API.
+:::
+
 <ClientOnly>
   <PkaTraceCleaner />
 </ClientOnly>

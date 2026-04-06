@@ -65,7 +65,8 @@
 import { ref } from 'vue'
 import { inflate, deflate } from 'pako'
 
-const API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
+const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
+const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
 const BLOB_URL_REVOKE_DELAY_MS = 10_000
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -103,6 +104,23 @@ function triggerDownload(blob: Blob, filename: string) {
   a.download = filename
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), BLOB_URL_REVOKE_DELAY_MS)
+}
+
+function hasTraceInAdditionalInfo(xml: string): boolean {
+  const additionalInfoRe = /<ADDITIONAL_INFO\b[^>]*>([\s\S]*?)<\/ADDITIONAL_INFO>/gi
+  const watermarkTextRe = /this\s+pka\s+has\s+been\s+altered\s+by/i
+  const watermarkUrlRe = /(?:https?:\/\/)?(?:www\.)?github\.com\s*\/\s*mircodezorzi\s*\/\s*pka2xml\/?/i
+  const markerTokenRe = /\b(?:mircodezorzi|pka2xml)\b/i
+
+  let match: RegExpExecArray | null = null
+  while ((match = additionalInfoRe.exec(xml)) !== null) {
+    const content = match[1]
+    if (watermarkTextRe.test(content) || watermarkUrlRe.test(content) || markerTokenRe.test(content)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 /**
@@ -230,13 +248,32 @@ async function cleanTraces() {
     if (!encryptResponse.ok) throw new Error(`Server error: ${encryptResponse.status}`)
 
     const cleanedB64 = await encryptResponse.text()
+
+    // Step 5: verify backend did not re-inject traces during encode.
+    const verifyResponse = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ file: `data:application/octet-stream;base64,${cleanedB64}`, action: 'decode' }),
+    })
+
+    if (!verifyResponse.ok) throw new Error(`Server error during verification: ${verifyResponse.status}`)
+
+    const verifyB64 = await verifyResponse.text()
+    const verifyBlob = await b64toBlob(verifyB64)
+    const verifyArrayBuffer = await verifyBlob.arrayBuffer()
+    const verifyXmlBytes = inflate(new Uint8Array(verifyArrayBuffer))
+    const verifyXml = new TextDecoder('utf-8').decode(verifyXmlBytes)
+
+    if (hasTraceInAdditionalInfo(verifyXml)) {
+      throw new Error('The configured backend re-injected the watermark during encode. Update VITE_PKA2XML_API_URL to a clean backend and try again')
+    }
+
     const cleanedBlob = await b64toBlob(cleanedB64)
 
     const origExt = selectedFile.value.name.match(/\.(pka|pkt)$/i)?.[1]?.toLowerCase() ?? 'pka'
     const outName = selectedFile.value.name.replace(/\.(pka|pkt)$/i, `.cleaned.${origExt}`)
     triggerDownload(cleanedBlob, outName)
 
-    successMsg.value = `Traces removed! "${outName}" has been downloaded.`
+    successMsg.value = `Traces removed and verified! "${outName}" has been downloaded.`
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     errorMsg.value = `Failed to clean traces: ${msg}. Make sure the file is a valid Packet Tracer .pka/.pkt file.`
