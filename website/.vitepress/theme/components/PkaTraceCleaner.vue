@@ -112,15 +112,23 @@ function triggerDownload(blob: Blob, filename: string) {
  */
 function removeTraces(xml: string): { xml: string; found: boolean } {
   const additionalInfoRe = /(<ADDITIONAL_INFO\b[^>]*>)([\s\S]*?)(<\/ADDITIONAL_INFO>)/gi
-  const watermarkRe = /this\s+pka\s+has\s+been\s+altered\s+by\s+(?:https?:\/\/)?(?:www\.)?github\.com\/mircodezorzi\/pka2xml/gi
+  const watermarkRe = /this\s+pka\s+has\s+been\s+altered\s+by\s+(?:https?:\/\/)?(?:www\.)?github\.com\/mircodezorzi\/pka2xml\/?/gi
+  const emptyCdataRe = /<!\[CDATA\[\s*\]\]>/gi
+  const danglingBreaksRe = /(?:&#13;|&#10;|<br\s*\/?>)+/gi
   let found = false
 
   const cleaned = xml.replace(additionalInfoRe, (_match, openTag, content, closeTag) => {
     const stripped = content.replace(watermarkRe, '')
+    const hadWatermark = stripped !== content
+    if (!hadWatermark) return `${openTag}${content}${closeTag}`
 
-    if (stripped !== content) found = true
+    const normalized = stripped
+      .replace(emptyCdataRe, '')
+      .replace(danglingBreaksRe, '')
 
-    if (stripped.trim() === '') {
+    found = true
+
+    if (normalized.trim() === '') {
       return `${openTag}${closeTag}`
     }
 
