@@ -107,17 +107,26 @@ function triggerDownload(blob: Blob, filename: string) {
 
 /**
  * Remove all pka2xml watermarks / traces from the decrypted XML string.
- * Currently handles the ADDITIONAL_INFO watermark injected by older versions
- * of pka2xml: "this pka has been altered by github.com/mircodezorzi/pka2xml"
+ * Handles known watermark variants injected by older versions of pka2xml,
+ * including spacing/casing differences and CDATA-wrapped content.
  */
 function removeTraces(xml: string): { xml: string; found: boolean } {
-  const watermark = 'this pka has been altered by github.com/mircodezorzi/pka2xml'
-  const re = new RegExp(`(<ADDITIONAL_INFO>)${watermark.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(</ADDITIONAL_INFO>)`, 'gi')
+  const additionalInfoRe = /(<ADDITIONAL_INFO\b[^>]*>)([\s\S]*?)(<\/ADDITIONAL_INFO>)/gi
+  const watermarkRe = /this\s+pka\s+has\s+been\s+altered\s+by\s+(?:https?:\/\/)?(?:www\.)?github\.com\/mircodezorzi\/pka2xml/gi
   let found = false
-  const cleaned = xml.replace(re, (_match, open, close) => {
-    found = true
-    return `${open}${close}`
+
+  const cleaned = xml.replace(additionalInfoRe, (_match, openTag, content, closeTag) => {
+    const stripped = content.replace(watermarkRe, '')
+
+    if (stripped !== content) found = true
+
+    if (stripped.trim() === '') {
+      return `${openTag}${closeTag}`
+    }
+
+    return `${openTag}${stripped}${closeTag}`
   })
+
   return { xml: cleaned, found }
 }
 
