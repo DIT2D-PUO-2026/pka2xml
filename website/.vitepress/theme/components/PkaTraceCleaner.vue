@@ -119,11 +119,14 @@ function removeTraces(xml: string): { xml: string; found: boolean } {
 
   const cleaned = xml.replace(additionalInfoRe, (_match, openTag, content, closeTag) => {
     const stripped = content.replace(watermarkRe, '')
+    const hadWatermark = stripped !== content
+    if (!hadWatermark) return `${openTag}${content}${closeTag}`
+
     const normalized = stripped
       .replace(emptyCdataRe, '')
       .replace(danglingBreaksRe, '')
 
-    if (stripped !== content) found = true
+    found = true
 
     if (normalized.trim() === '') {
       return `${openTag}${closeTag}`
