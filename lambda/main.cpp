@@ -67,13 +67,11 @@ std::string retrofit(const std::string &file) {
   CryptoPP::StringSource(file, true,
     new CryptoPP::Base64Decoder(new CryptoPP::StringSink(decoded)));
 
-	// we won't use pka2xml::fix as we want to include our signature
-  std::string clear = pka2xml::is_old_pt(decoded) 
+  std::string clear = pka2xml::is_old_pt(decoded)
 		? pka2xml::decrypt_old(decoded)
 		: pka2xml::decrypt_pka(decoded);
 
   re2::RE2::GlobalReplace(&clear, R"(<VERSION>\d\.\d\.\d\.\d{4}</VERSION>)", "<VERSION>6.0.1.0000</VERSION>");
-  re2::RE2::GlobalReplace(&clear, "<ADDITIONAL_INFO>(.*?)</ADDITIONAL_INFO>", "<ADDITIONAL_INFO>this pka has been altered by github.com/mircodezorzi/pka2xml</ADDITIONAL_INFO>");
 
 	clear = pka2xml::encrypt_pka(clear);
 
@@ -104,8 +102,6 @@ std::string encode(const std::string &file, unsigned long length) {
     new CryptoPP::Base64Decoder(new CryptoPP::StringSink(decoded)));
 
   auto uncompressed = uncompress(reinterpret_cast<const unsigned char*>(decoded.data()), decoded.size(), length);
-
-  re2::RE2::GlobalReplace(&uncompressed, "<ADDITIONAL_INFO>(.*?)</ADDITIONAL_INFO>", "<ADDITIONAL_INFO>this pka has been altered by github.com/mircodezorzi/pka2xml</ADDITIONAL_INFO>");
 
   auto decrypted = pka2xml::encrypt_pka(uncompressed);
 
