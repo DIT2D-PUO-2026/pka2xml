@@ -132,9 +132,7 @@ function removeTraces(xml: string): { xml: string; found: boolean } {
   const additionalInfoRe = /(<ADDITIONAL_INFO\b[^>]*>)([\s\S]*?)(<\/ADDITIONAL_INFO>)/gi
   const watermarkRe = /(?:this\s+pka\s+has\s+been\s+altered\s+by\s+)?(?:https?:\/\/)?(?:www\.)?github\.com\s*\/\s*mircodezorzi\s*\/\s*pka2xml\/?/gi
   const markerHintsRe = /(?:mircodezorzi|pka2xml)/i
-  const markerTokensRe = /(?:https?:\/\/)?(?:www\.)?github\.com\s*\/\s*mircodezorzi\s*\/\s*pka2xml\/?|\bmircodezorzi\b|\bpka2xml\b/gi
-  const emptyCdataRe = /<!\[CDATA\[\s*\]\]>/gi
-  const danglingBreaksRe = /(?:&#13;|&#10;|<br\s*\/?>)+/gi
+  const toSelfClosingTag = (openTag: string): string => openTag.replace(/>\s*$/, '/>')
   let found = false
 
   const cleaned = xml.replace(additionalInfoRe, (_match, openTag, content, closeTag) => {
@@ -146,21 +144,11 @@ function removeTraces(xml: string): { xml: string; found: boolean } {
       return `${openTag}${content}${closeTag}`
     }
 
-    let normalized = stripped
-      .replace(emptyCdataRe, '')
-      .replace(danglingBreaksRe, '')
-      .trim()
-
-    // Final safety pass for odd spacing/casing variants that evade the main regex.
-    normalized = normalized.replace(markerTokensRe, '').trim()
-
     found = true
 
-    if (normalized === '') {
-      return `${openTag}${closeTag}`
-    }
-
-    return `${openTag}${normalized}${closeTag}`
+    // Compatibility: old backends re-inject watermark when ADDITIONAL_INFO uses open/close tags.
+    // Keeping it self-closing avoids reinjection while preserving USER_PROFILE structure.
+    return toSelfClosingTag(openTag)
   })
 
   return { xml: cleaned, found }
