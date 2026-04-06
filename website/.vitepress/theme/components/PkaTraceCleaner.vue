@@ -112,7 +112,9 @@ function triggerDownload(blob: Blob, filename: string) {
  */
 function removeTraces(xml: string): { xml: string; found: boolean } {
   const additionalInfoRe = /(<ADDITIONAL_INFO\b[^>]*>)([\s\S]*?)(<\/ADDITIONAL_INFO>)/gi
-  const watermarkRe = /this\s+pka\s+has\s+been\s+altered\s+by\s+(?:https?:\/\/)?(?:www\.)?github\.com\/mircodezorzi\/pka2xml\/?/gi
+  const watermarkRe = /(?:this\s+pka\s+has\s+been\s+altered\s+by\s+)?(?:https?:\/\/)?(?:www\.)?github\.com\s*\/\s*mircodezorzi\s*\/\s*pka2xml\/?/gi
+  const markerHintsRe = /(?:mircodezorzi|pka2xml)/i
+  const markerTokensRe = /(?:https?:\/\/)?(?:www\.)?github\.com\s*\/\s*mircodezorzi\s*\/\s*pka2xml\/?|\bmircodezorzi\b|\bpka2xml\b/gi
   const emptyCdataRe = /<!\[CDATA\[\s*\]\]>/gi
   const danglingBreaksRe = /(?:&#13;|&#10;|<br\s*\/?>)+/gi
   let found = false
@@ -120,19 +122,27 @@ function removeTraces(xml: string): { xml: string; found: boolean } {
   const cleaned = xml.replace(additionalInfoRe, (_match, openTag, content, closeTag) => {
     const stripped = content.replace(watermarkRe, '')
     const hadWatermark = stripped !== content
-    if (!hadWatermark) return `${openTag}${content}${closeTag}`
+    const hasMarkerHints = markerHintsRe.test(content)
 
-    const normalized = stripped
+    if (!hadWatermark && !hasMarkerHints) {
+      return `${openTag}${content}${closeTag}`
+    }
+
+    let normalized = stripped
       .replace(emptyCdataRe, '')
       .replace(danglingBreaksRe, '')
+      .trim()
+
+    // Final safety pass for odd spacing/casing variants that evade the main regex.
+    normalized = normalized.replace(markerTokensRe, '').trim()
 
     found = true
 
-    if (normalized.trim() === '') {
+    if (normalized === '') {
       return `${openTag}${closeTag}`
     }
 
-    return `${openTag}${stripped}${closeTag}`
+    return `${openTag}${normalized}${closeTag}`
   })
 
   return { xml: cleaned, found }
