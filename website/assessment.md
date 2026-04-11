@@ -10,6 +10,12 @@ Use this tool to **inspect assessment check items** inside a Packet Tracer `.pka
 Upload a `.pka` / `.pkt` file (it will be decrypted automatically) or a plain `.xml` file that was already decrypted. The tool reads the `COMPARISONS` and `INITIALSETUP` sections, finds every node with `checkType` 1 or 2, and compares the current initial value against the expected value.
 :::
 
+::: warning Experimental Features
+Still `Undertesting` but the real values (expected) are `true` from original pka file
+Please don't trust the total correct and incorrect items that are showing here (bugs)
+You can the `inspect` that total `Assessment Items` on your `cisco`
+:::
+
 <ClientOnly>
   <AssessmentItems />
 </ClientOnly>
