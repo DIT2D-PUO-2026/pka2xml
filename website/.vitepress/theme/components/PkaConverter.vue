@@ -90,6 +90,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { inflate, deflate } from 'pako'
+import { removeTraces, verifyNoWatermark } from './watermarkUtils'
 
 const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
 const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
@@ -194,7 +195,10 @@ async function doAction(action: 'decode' | 'encode' | 'retrofit') {
 
       // Decompress the result with pako (server returns zlib-compressed XML)
       const data = inflate(new Uint8Array(arrayBuffer))
-      const xmlStr = new TextDecoder('utf-8').decode(data)
+      const rawXml = new TextDecoder('utf-8').decode(data)
+
+      // Strip any pka2xml watermark / traces from the decrypted XML
+      const { xml: xmlStr, found: tracesFound } = removeTraces(rawXml)
 
       // Show preview (first MAX_PREVIEW_LENGTH chars)
       xmlPreview.value = xmlStr.length > MAX_PREVIEW_LENGTH ? xmlStr.slice(0, MAX_PREVIEW_LENGTH) + '\n… (truncated)' : xmlStr
@@ -204,7 +208,10 @@ async function doAction(action: 'decode' | 'encode' | 'retrofit') {
         new Blob([xmlStr], { type: 'application/xml' }),
         file.name.replace(/\.(pka|pkt)$/i, '.xml')
       )
-      successMsg.value = `Decrypted successfully! Your file "${file.name.replace(/\.(pka|pkt)$/i, '.xml')}" has been downloaded.`
+      const outXmlName = file.name.replace(/\.(pka|pkt)$/i, '.xml')
+      successMsg.value = tracesFound
+        ? `Decrypted successfully! pka2xml watermark was removed. "${outXmlName}" has been downloaded.`
+        : `Decrypted successfully! Your file "${outXmlName}" has been downloaded.`
     } else if (action === 'retrofit') {
       const b64 = await toBase64(file)
 
@@ -216,12 +223,15 @@ async function doAction(action: 'decode' | 'encode' | 'retrofit') {
       if (!response.ok) throw new Error(`Server error: ${response.status}`)
 
       const resultB64 = await response.text()
-      const blob = await b64toBlob(resultB64)
+      const resultBlob = await b64toBlob(resultB64)
 
-      triggerDownload(blob, file.name)
+      triggerDownload(resultBlob, file.name)
       successMsg.value = `Retrofit complete! "${file.name}" has been downloaded and can now be opened by any Packet Tracer version.`
     } else if (action === 'encode') {
-      const xmlStr = await file.text()
+      const rawXmlStr = await file.text()
+
+      // Strip any pka2xml watermark / traces before re-encrypting
+      const { xml: xmlStr } = removeTraces(rawXmlStr)
 
       // Compress the XML before sending (server expects compressed data)
       const encodedXml = new TextEncoder().encode(xmlStr)
@@ -238,9 +248,12 @@ async function doAction(action: 'decode' | 'encode' | 'retrofit') {
       if (!response.ok) throw new Error(`Server error: ${response.status}`)
 
       const resultB64 = await response.text()
-      const blob = await b64toBlob(resultB64)
 
-      triggerDownload(blob, file.name.replace(/\.xml$/i, '.pka'))
+      // Verify the backend did not re-inject traces during encode
+      await verifyNoWatermark(API_URL, resultB64)
+
+      const resultBlob = await b64toBlob(resultB64)
+      triggerDownload(resultBlob, file.name.replace(/\.xml$/i, '.pka'))
       successMsg.value = `Encrypted successfully! "${file.name.replace(/\.xml$/i, '.pka')}" has been downloaded.`
     }
   } catch (err: unknown) {

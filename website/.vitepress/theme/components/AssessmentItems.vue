@@ -170,6 +170,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { inflate } from 'pako'
+import { removeTraces } from './watermarkUtils'
 
 const API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
 
@@ -387,7 +388,10 @@ async function analyze() {
 
       // Decompress (server returns zlib-compressed XML)
       const data = inflate(new Uint8Array(arrayBuffer))
-      xmlStr = new TextDecoder('utf-8').decode(data)
+      const rawXml = new TextDecoder('utf-8').decode(data)
+      // Strip any pka2xml watermark / traces before analysis
+      const { xml: cleanedXml } = removeTraces(rawXml)
+      xmlStr = cleanedXml
       decrypting.value = false
     } else {
       // Read XML directly

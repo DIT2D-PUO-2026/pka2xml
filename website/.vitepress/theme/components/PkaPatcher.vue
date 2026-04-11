@@ -186,6 +186,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { inflate, deflate } from 'pako'
+import { removeTraces, verifyNoWatermark } from './watermarkUtils'
 
 const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
 const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
@@ -353,7 +354,12 @@ async function decryptFile() {
     const arrayBuffer = await blob.arrayBuffer()
 
     const data = inflate(new Uint8Array(arrayBuffer))
-    xmlContent.value = new TextDecoder('utf-8').decode(data)
+    const rawXml = new TextDecoder('utf-8').decode(data)
+
+    // Strip any pka2xml watermark / traces from the decrypted XML so
+    // they are not present when the patched file is re-encrypted.
+    const { xml: cleanedXml } = removeTraces(rawXml)
+    xmlContent.value = cleanedXml
 
     step.value = 'patch'
   } catch (err: unknown) {
@@ -395,8 +401,11 @@ async function applyPatches() {
       throw new Error(`None of the selected attributes were found in the file. Make sure it is a valid Packet Tracer activity file with countdown settings.`)
     }
 
+    // Strip any remaining traces before compressing and re-encrypting
+    const { xml: cleanedXml } = removeTraces(xml)
+
     // Compress and re-encrypt
-    const encodedXml = new TextEncoder().encode(xml)
+    const encodedXml = new TextEncoder().encode(cleanedXml)
     const compressed = deflate(encodedXml)
     const compressedBlob = new Blob([compressed], { type: 'application/octet-stream' })
     const b64 = await toBase64(compressedBlob)
@@ -409,6 +418,10 @@ async function applyPatches() {
     if (!response.ok) throw new Error(`Server error: ${response.status}`)
 
     const resultB64 = await response.text()
+
+    // Verify the backend did not re-inject traces during encode
+    await verifyNoWatermark(API_URL, resultB64)
+
     const resultBlob = await b64toBlob(resultB64)
 
     const origExt = selectedFile.value.name.match(/\.(pka|pkt)$/i)?.[1]?.toLowerCase() ?? 'pka'
