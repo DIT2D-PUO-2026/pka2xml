@@ -148,6 +148,8 @@ invocation_response handler(invocation_request const& request) {
 		}
   } catch (const std::exception &e) {
     return invocation_response::failure("error during the decoding of the file", "InvalidPK");
+  } catch (...) {
+    return invocation_response::failure("error during the decoding of the file", "InvalidPK");
   }
 
   return invocation_response::failure("action not supported yet", "InvalidAction");
