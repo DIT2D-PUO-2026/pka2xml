@@ -201,7 +201,7 @@
 import { ref, reactive, computed } from 'vue'
 import { inflate, deflate } from 'pako'
 import { removeTraces, verifyNoWatermark } from './watermarkUtils'
-import { postJsonWithUploadProgress } from './uploadWithProgress'
+import { postJsonWithUploadProgress, toUploadStatusMessage } from './uploadWithProgress'
 
 const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
 const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
@@ -366,13 +366,7 @@ async function decryptFile() {
     const uploadAction = async (payload: unknown): Promise<string> => {
       const response = await postJsonWithUploadProgress(API_URL, payload, (state) => {
         uploadProgress.value = state.percent
-        if (state.phase === 'uploading') {
-          uploadStatus.value = `Uploading file to server… ${state.percent}%`
-        } else if (state.phase === 'processing') {
-          uploadStatus.value = 'Upload complete. Waiting for server processing…'
-        } else {
-          uploadStatus.value = 'Upload verified complete. Reading server response…'
-        }
+        uploadStatus.value = toUploadStatusMessage(state)
       })
       if (!response.ok) throw new Error(`Server error: ${response.status}`)
       return response.body
@@ -415,13 +409,7 @@ async function applyPatches() {
     const uploadAction = async (payload: unknown): Promise<string> => {
       const response = await postJsonWithUploadProgress(API_URL, payload, (state) => {
         uploadProgress.value = state.percent
-        if (state.phase === 'uploading') {
-          uploadStatus.value = `Uploading file to server… ${state.percent}%`
-        } else if (state.phase === 'processing') {
-          uploadStatus.value = 'Upload complete. Waiting for server processing…'
-        } else {
-          uploadStatus.value = 'Upload verified complete. Reading server response…'
-        }
+        uploadStatus.value = toUploadStatusMessage(state)
       })
       if (!response.ok) throw new Error(`Server error: ${response.status}`)
       return response.body

@@ -11,6 +11,19 @@ interface UploadResponse {
   body: string
 }
 
+// Keep progress below 100% until upload completion is verified and a response is received.
+const MAX_UPLOAD_PROGRESS_BEFORE_COMPLETE = 99
+
+export function toUploadStatusMessage(state: UploadProgressState): string {
+  if (state.phase === 'uploading') {
+    return `Uploading file to server… ${state.percent}%`
+  }
+  if (state.phase === 'processing') {
+    return 'Upload complete. Waiting for server processing…'
+  }
+  return 'Upload verified complete. Reading server response…'
+}
+
 /**
  * Send JSON payload with upload progress tracking.
  * Uses XMLHttpRequest because fetch does not expose upload progress events.
@@ -38,7 +51,9 @@ export function postJsonWithUploadProgress(
       if (event.lengthComputable && event.total > 0) {
         totalBytes = event.total
       }
-      const percent = totalBytes > 0 ? Math.min(99, Math.round((loadedBytes / totalBytes) * 100)) : 0
+      const percent = totalBytes > 0
+        ? Math.min(MAX_UPLOAD_PROGRESS_BEFORE_COMPLETE, Math.round((loadedBytes / totalBytes) * 100))
+        : 0
       onProgress({ uploadedBytes: loadedBytes, totalBytes, percent, phase: 'uploading' })
     }
 
