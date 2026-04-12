@@ -45,11 +45,45 @@ jobs:
         working-directory: website
         run: npm ci
 
+      - name: Resolve maintenance mode
+        id: maintenance_mode
+        env:
+          REPO_MAINTENANCE_MODE: ${{ vars.MAINTENANCE_MODE }}
+          PAGES_STATE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/maintenance-state.json
+        run: |
+          set -euo pipefail
+
+          mode="${REPO_MAINTENANCE_MODE:-}"
+
+          if [[ "$mode" != "true" && "$mode" != "false" ]]; then
+            state="$(curl -fsSL "$PAGES_STATE_URL" 2>/dev/null || true)"
+            if [[ -n "$state" ]]; then
+              parsed="$(printf '%s' "$state" | sed -nE 's/.*"enabled"[[:space:]]*:[[:space:]]*(true|false).*/\1/p' | head -n1)"
+              if [[ "$parsed" == "true" || "$parsed" == "false" ]]; then
+                mode="$parsed"
+              fi
+            fi
+          fi
+
+          if [[ "$mode" != "true" ]]; then
+            mode="false"
+          fi
+
+          echo "value=$mode" >> "$GITHUB_OUTPUT"
+          echo "Using maintenance mode: $mode"
+
+      - name: Write maintenance state file
+        run: |
+          mkdir -p website/public
+          cat > website/public/maintenance-state.json <<JSON
+          {"enabled":${{ steps.maintenance_mode.outputs.value }}}
+          JSON
+
       - name: Build VitePress
         working-directory: website
         env:
           VITE_PKA2XML_API_URL: ${{ vars.PKA2XML_API_URL }}
-          VITE_MAINTENANCE_MODE: ${{ vars.MAINTENANCE_MODE || 'false' }}
+          VITE_MAINTENANCE_MODE: ${{ steps.maintenance_mode.outputs.value }}
         run: npm run docs:build
 
       - name: Upload artifact

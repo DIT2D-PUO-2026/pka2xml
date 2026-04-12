@@ -20,7 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set repository maintenance variable
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
+        continue-on-error: true
         with:
           script: |
             const owner = context.repo.owner
@@ -28,16 +29,20 @@ jobs:
             const name = 'MAINTENANCE_MODE'
             const value = 'true'
 
-            try {
-              await github.request('PATCH /repos/{owner}/{repo}/actions/variables/{name}', {
-                owner,
-                repo,
-                name,
-                value
-              })
-              core.info(`Updated ${name}=${value}`)
-            } catch (error) {
-              if (error.status !== 404) throw error
+            const upsertVariable = async () => {
+              try {
+                await github.request('PATCH /repos/{owner}/{repo}/actions/variables/{name}', {
+                  owner,
+                  repo,
+                  name,
+                  value
+                })
+                core.info(`Updated ${name}=${value}`)
+                return
+              } catch (error) {
+                if (error.status !== 404) throw error
+              }
+
               await github.request('POST /repos/{owner}/{repo}/actions/variables', {
                 owner,
                 repo,
@@ -45,6 +50,21 @@ jobs:
                 value
               })
               core.info(`Created ${name}=${value}`)
+            }
+
+            try {
+              await upsertVariable()
+            } catch (error) {
+              if (error.status === 401 || error.status === 403) {
+                core.warning(
+                  `Could not persist ${name}. ${error.message}. ` +
+                  'Maintenance mode for this run is still enabled and deployed. ' +
+                  'To persist the variable for future runs, enable read/write workflow permissions for GITHUB_TOKEN or set MAINTENANCE_MODE manually in repository variables.'
+                )
+                return
+              }
+
+              throw error
             }
 
   build:
@@ -70,6 +90,13 @@ jobs:
       - name: Install dependencies
         working-directory: website
         run: npm ci
+
+      - name: Write maintenance state file
+        run: |
+          mkdir -p website/public
+          cat > website/public/maintenance-state.json <<'JSON'
+          {"enabled":true}
+          JSON
 
       - name: Build VitePress (maintenance mode enabled)
         working-directory: website
