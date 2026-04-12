@@ -11,6 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -48,6 +49,7 @@ jobs:
         working-directory: website
         env:
           VITE_PKA2XML_API_URL: ${{ vars.PKA2XML_API_URL }}
+          VITE_MAINTENANCE_MODE: ${{ vars.MAINTENANCE_MODE || 'false' }}
         run: npm run docs:build
 
       - name: Upload artifact

@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: read
   pages: write
   id-token: write
@@ -14,8 +15,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  set-maintenance-variable:
+    name: Persist maintenance mode (OFF)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set repository maintenance variable
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const name = 'MAINTENANCE_MODE'
+            const value = 'false'
+
+            try {
+              await github.request('PATCH /repos/{owner}/{repo}/actions/variables/{name}', {
+                owner,
+                repo,
+                name,
+                value
+              })
+              core.info(`Updated ${name}=${value}`)
+            } catch (error) {
+              if (error.status !== 404) throw error
+              await github.request('POST /repos/{owner}/{repo}/actions/variables', {
+                owner,
+                repo,
+                name,
+                value
+              })
+              core.info(`Created ${name}=${value}`)
+            }
+
   build:
     name: Build VitePress site (maintenance OFF)
+    needs: set-maintenance-variable
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
