@@ -47,7 +47,14 @@
 
     <div v-if="loading" class="status-box status-loading" style="margin-top:1rem">
       <div class="spinner"></div>
-      <span>Processing <strong>{{ selectedFile?.name }}</strong>… this may take a few seconds.</span>
+      <span>{{ uploadStatus || `Processing ${selectedFile?.name}… this may take a few seconds.` }}</span>
+    </div>
+
+    <div v-if="loading" class="upload-progress">
+      <div class="upload-progress__track">
+        <div class="upload-progress__fill" :style="{ width: `${uploadProgress}%` }"></div>
+      </div>
+      <span class="upload-progress__text">{{ uploadProgress }}%</span>
     </div>
 
     <div v-if="errorMsg" class="status-box status-error" style="margin-top:1rem">
@@ -65,6 +72,7 @@
 import { ref } from 'vue'
 import { inflate, deflate } from 'pako'
 import { removeTraces, verifyNoWatermark } from './watermarkUtils'
+import { postJsonWithUploadProgress } from './uploadWithProgress'
 
 const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
 const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
@@ -76,6 +84,8 @@ const loading = ref(false)
 const errorMsg = ref('')
 const successMsg = ref('')
 const isDragging = ref(false)
+const uploadProgress = ref(0)
+const uploadStatus = ref('')
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -137,6 +147,8 @@ function reset() {
   selectedFile.value = null
   errorMsg.value = ''
   successMsg.value = ''
+  uploadProgress.value = 0
+  uploadStatus.value = ''
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -147,19 +159,28 @@ async function cleanTraces() {
   loading.value = true
   errorMsg.value = ''
   successMsg.value = ''
+  uploadProgress.value = 0
+  uploadStatus.value = 'Preparing file for upload…'
 
   try {
+    const uploadAction = async (payload: unknown): Promise<string> => {
+      const response = await postJsonWithUploadProgress(API_URL, payload, (state) => {
+        uploadProgress.value = state.percent
+        if (state.phase === 'uploading') {
+          uploadStatus.value = `Uploading file to server… ${state.percent}%`
+        } else if (state.phase === 'processing') {
+          uploadStatus.value = 'Upload complete. Waiting for server processing…'
+        } else {
+          uploadStatus.value = 'Upload verified complete. Reading server response…'
+        }
+      })
+      if (!response.ok) throw new Error(`Server error: ${response.status}`)
+      return response.body
+    }
+
     // Step 1: decrypt the file
     const b64 = await toBase64(selectedFile.value)
-
-    const decryptResponse = await fetch(API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ file: b64, action: 'decode' }),
-    })
-
-    if (!decryptResponse.ok) throw new Error(`Server error: ${decryptResponse.status}`)
-
-    const resultB64 = await decryptResponse.text()
+    const resultB64 = await uploadAction({ file: b64, action: 'decode' })
     const blob = await b64toBlob(resultB64)
     const arrayBuffer = await blob.arrayBuffer()
 
@@ -180,15 +201,7 @@ async function cleanTraces() {
     const compressed = deflate(encodedXml)
     const compressedBlob = new Blob([compressed], { type: 'application/octet-stream' })
     const compressedB64 = await toBase64(compressedBlob)
-
-    const encryptResponse = await fetch(API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ file: compressedB64, action: 'encode', length: encodedXml.length }),
-    })
-
-    if (!encryptResponse.ok) throw new Error(`Server error: ${encryptResponse.status}`)
-
-    const cleanedB64 = await encryptResponse.text()
+    const cleanedB64 = await uploadAction({ file: compressedB64, action: 'encode', length: encodedXml.length })
 
     // Step 5: verify backend did not re-inject traces during encode.
     await verifyNoWatermark(API_URL, cleanedB64)
@@ -205,6 +218,8 @@ async function cleanTraces() {
     errorMsg.value = `Failed to clean traces: ${msg}. Make sure the file is a valid Packet Tracer .pka/.pkt file.`
   } finally {
     loading.value = false
+    uploadProgress.value = 0
+    uploadStatus.value = ''
   }
 }
 </script>
@@ -262,6 +277,31 @@ async function cleanTraces() {
 
 .dark .status-error   { background: #3a1010; color: #f88; border-color: #6a2020; }
 .dark .status-success { background: #0d2a18; color: #6f6; border-color: #1a5c30; }
+
+.upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.upload-progress__track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--vp-c-bg-soft);
+  overflow: hidden;
+}
+.upload-progress__fill {
+  height: 100%;
+  background: var(--vp-c-brand-1);
+  transition: width 0.2s ease;
+}
+.upload-progress__text {
+  min-width: 3rem;
+  text-align: right;
+  font-size: 0.85rem;
+  color: var(--vp-c-text-2);
+}
 
 /* ── spinner ── */
 .spinner {

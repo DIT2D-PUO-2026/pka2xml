@@ -51,9 +51,16 @@
     <div v-if="loading" class="status-box status-loading">
       <div class="spinner"></div>
       <span>
-        <span v-if="decrypting">Decrypting <strong>{{ selectedFile?.name }}</strong>… this may take a few seconds.</span>
+        <span v-if="decrypting">{{ uploadStatus || `Decrypting ${selectedFile?.name}… this may take a few seconds.` }}</span>
         <span v-else>Parsing XML and analyzing assessment items…</span>
       </span>
+    </div>
+
+    <div v-if="loading && decrypting" class="upload-progress">
+      <div class="upload-progress__track">
+        <div class="upload-progress__fill" :style="{ width: `${uploadProgress}%` }"></div>
+      </div>
+      <span class="upload-progress__text">{{ uploadProgress }}%</span>
     </div>
 
     <div v-if="errorMsg" class="status-box status-error">
@@ -171,6 +178,7 @@
 import { ref } from 'vue'
 import { inflate } from 'pako'
 import { removeTraces } from './watermarkUtils'
+import { postJsonWithUploadProgress } from './uploadWithProgress'
 
 const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
 const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
@@ -201,6 +209,8 @@ const decrypting = ref(false)
 const errorMsg = ref('')
 const isDragging = ref(false)
 const results = ref<Results | null>(null)
+const uploadProgress = ref(0)
+const uploadStatus = ref('')
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -357,6 +367,8 @@ function reset() {
   selectedFile.value = null
   errorMsg.value = ''
   results.value = null
+  uploadProgress.value = 0
+  uploadStatus.value = ''
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -367,6 +379,8 @@ async function analyze() {
   loading.value = true
   errorMsg.value = ''
   results.value = null
+  uploadProgress.value = 0
+  uploadStatus.value = ''
 
   try {
     let xmlStr: string
@@ -374,16 +388,22 @@ async function analyze() {
     if (/\.(pka|pkt)$/i.test(selectedFile.value.name)) {
       // Decrypt via API first
       decrypting.value = true
+      uploadStatus.value = 'Preparing file for upload…'
       const b64 = await toBase64(selectedFile.value)
-
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ file: b64, action: 'decode' }),
+      const response = await postJsonWithUploadProgress(API_URL, { file: b64, action: 'decode' }, (state) => {
+        uploadProgress.value = state.percent
+        if (state.phase === 'uploading') {
+          uploadStatus.value = `Uploading file to server… ${state.percent}%`
+        } else if (state.phase === 'processing') {
+          uploadStatus.value = 'Upload complete. Waiting for server processing…'
+        } else {
+          uploadStatus.value = 'Upload verified complete. Reading server response…'
+        }
       })
 
       if (!response.ok) throw new Error(`Server error: ${response.status}`)
 
-      const resultB64 = await response.text()
+      const resultB64 = response.body
       const blob = await b64toBlob(resultB64)
       const arrayBuffer = await blob.arrayBuffer()
 
@@ -406,6 +426,8 @@ async function analyze() {
   } finally {
     loading.value = false
     decrypting.value = false
+    uploadProgress.value = 0
+    uploadStatus.value = ''
   }
 }
 </script>
@@ -462,6 +484,31 @@ async function analyze() {
 .status-error   { background: #fff0f0; color: #c00; border: 1px solid #f8c8c8; }
 
 .dark .status-error { background: #3a1010; color: #f88; border-color: #6a2020; }
+
+.upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.upload-progress__track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--vp-c-bg-soft);
+  overflow: hidden;
+}
+.upload-progress__fill {
+  height: 100%;
+  background: var(--vp-c-brand-1);
+  transition: width 0.2s ease;
+}
+.upload-progress__text {
+  min-width: 3rem;
+  text-align: right;
+  font-size: 0.85rem;
+  color: var(--vp-c-text-2);
+}
 
 /* ── spinner ── */
 .spinner {

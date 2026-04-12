@@ -48,7 +48,14 @@
 
       <div v-if="loading" class="status-box status-loading" style="margin-top:1rem">
         <div class="spinner"></div>
-        <span>Decrypting <strong>{{ selectedFile?.name }}</strong>… this may take a few seconds.</span>
+        <span>{{ uploadStatus || `Decrypting ${selectedFile?.name}… this may take a few seconds.` }}</span>
+      </div>
+
+      <div v-if="loading" class="upload-progress">
+        <div class="upload-progress__track">
+          <div class="upload-progress__fill" :style="{ width: `${uploadProgress}%` }"></div>
+        </div>
+        <span class="upload-progress__text">{{ uploadProgress }}%</span>
       </div>
 
       <div v-if="errorMsg" class="status-box status-error" style="margin-top:1rem">
@@ -169,7 +176,14 @@
 
       <div v-if="loading" class="status-box status-loading" style="margin-top:1rem">
         <div class="spinner"></div>
-        <span>Re-encrypting and downloading…</span>
+        <span>{{ uploadStatus || 'Re-encrypting and downloading…' }}</span>
+      </div>
+
+      <div v-if="loading" class="upload-progress">
+        <div class="upload-progress__track">
+          <div class="upload-progress__fill" :style="{ width: `${uploadProgress}%` }"></div>
+        </div>
+        <span class="upload-progress__text">{{ uploadProgress }}%</span>
       </div>
 
       <div v-if="errorMsg" class="status-box status-error" style="margin-top:1rem">
@@ -187,6 +201,7 @@
 import { ref, reactive, computed } from 'vue'
 import { inflate, deflate } from 'pako'
 import { removeTraces, verifyNoWatermark } from './watermarkUtils'
+import { postJsonWithUploadProgress } from './uploadWithProgress'
 
 const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
 const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
@@ -201,6 +216,8 @@ const successMsg = ref('')
 const isDragging = ref(false)
 const step = ref<'upload' | 'patch'>('upload')
 const xmlContent = ref('')
+const uploadProgress = ref(0)
+const uploadStatus = ref('')
 
 interface TimePatch {
   enabled: boolean
@@ -322,6 +339,8 @@ function reset() {
   successMsg.value = ''
   xmlContent.value = ''
   step.value = 'upload'
+  uploadProgress.value = 0
+  uploadStatus.value = ''
   resetPatches()
   if (fileInput.value) fileInput.value.value = ''
 }
@@ -330,6 +349,8 @@ function goBack() {
   step.value = 'upload'
   errorMsg.value = ''
   successMsg.value = ''
+  uploadProgress.value = 0
+  uploadStatus.value = ''
   resetPatches()
 }
 
@@ -338,18 +359,27 @@ async function decryptFile() {
   if (!selectedFile.value) return
   loading.value = true
   errorMsg.value = ''
+  uploadProgress.value = 0
+  uploadStatus.value = 'Preparing file for upload…'
 
   try {
+    const uploadAction = async (payload: unknown): Promise<string> => {
+      const response = await postJsonWithUploadProgress(API_URL, payload, (state) => {
+        uploadProgress.value = state.percent
+        if (state.phase === 'uploading') {
+          uploadStatus.value = `Uploading file to server… ${state.percent}%`
+        } else if (state.phase === 'processing') {
+          uploadStatus.value = 'Upload complete. Waiting for server processing…'
+        } else {
+          uploadStatus.value = 'Upload verified complete. Reading server response…'
+        }
+      })
+      if (!response.ok) throw new Error(`Server error: ${response.status}`)
+      return response.body
+    }
+
     const b64 = await toBase64(selectedFile.value)
-
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ file: b64, action: 'decode' }),
-    })
-
-    if (!response.ok) throw new Error(`Server error: ${response.status}`)
-
-    const resultB64 = await response.text()
+    const resultB64 = await uploadAction({ file: b64, action: 'decode' })
     const blob = await b64toBlob(resultB64)
     const arrayBuffer = await blob.arrayBuffer()
 
@@ -367,6 +397,8 @@ async function decryptFile() {
     errorMsg.value = `Decryption failed: ${msg}. Make sure the file is a valid Packet Tracer .pka/.pkt file.`
   } finally {
     loading.value = false
+    uploadProgress.value = 0
+    uploadStatus.value = ''
   }
 }
 
@@ -376,8 +408,25 @@ async function applyPatches() {
   loading.value = true
   errorMsg.value = ''
   successMsg.value = ''
+  uploadProgress.value = 0
+  uploadStatus.value = 'Preparing file for upload…'
 
   try {
+    const uploadAction = async (payload: unknown): Promise<string> => {
+      const response = await postJsonWithUploadProgress(API_URL, payload, (state) => {
+        uploadProgress.value = state.percent
+        if (state.phase === 'uploading') {
+          uploadStatus.value = `Uploading file to server… ${state.percent}%`
+        } else if (state.phase === 'processing') {
+          uploadStatus.value = 'Upload complete. Waiting for server processing…'
+        } else {
+          uploadStatus.value = 'Upload verified complete. Reading server response…'
+        }
+      })
+      if (!response.ok) throw new Error(`Server error: ${response.status}`)
+      return response.body
+    }
+
     let xml = xmlContent.value
     const noMatch: string[] = []
 
@@ -409,15 +458,7 @@ async function applyPatches() {
     const compressed = deflate(encodedXml)
     const compressedBlob = new Blob([compressed], { type: 'application/octet-stream' })
     const b64 = await toBase64(compressedBlob)
-
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ file: b64, action: 'encode', length: encodedXml.length }),
-    })
-
-    if (!response.ok) throw new Error(`Server error: ${response.status}`)
-
-    const resultB64 = await response.text()
+    const resultB64 = await uploadAction({ file: b64, action: 'encode', length: encodedXml.length })
 
     // Verify the backend did not re-inject traces during encode
     await verifyNoWatermark(API_URL, resultB64)
@@ -437,6 +478,8 @@ async function applyPatches() {
     errorMsg.value = `Failed to apply patches: ${msg}`
   } finally {
     loading.value = false
+    uploadProgress.value = 0
+    uploadStatus.value = ''
   }
 }
 </script>
@@ -494,6 +537,31 @@ async function applyPatches() {
 
 .dark .status-error   { background: #3a1010; color: #f88; border-color: #6a2020; }
 .dark .status-success { background: #0d2a18; color: #6f6; border-color: #1a5c30; }
+
+.upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.upload-progress__track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--vp-c-bg-soft);
+  overflow: hidden;
+}
+.upload-progress__fill {
+  height: 100%;
+  background: var(--vp-c-brand-1);
+  transition: width 0.2s ease;
+}
+.upload-progress__text {
+  min-width: 3rem;
+  text-align: right;
+  font-size: 0.85rem;
+  color: var(--vp-c-text-2);
+}
 
 /* ── spinner ── */
 .spinner {
