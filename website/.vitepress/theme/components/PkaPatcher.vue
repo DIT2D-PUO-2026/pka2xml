@@ -164,7 +164,7 @@
           </label>
           <p class="patch-card__desc">
             Enable or disable scoring checks by updating <code>checkType</code> values in
-            <code>COMPARISONS</code>.
+            <code>COMPARISONS</code> and <code>INITIALSETUP</code>.
           </p>
           <div v-if="hasAssessmentItems" class="field-hint">
             Found <strong>{{ assessmentSummary.comparisonItems }}</strong> comparison items
@@ -372,36 +372,33 @@ function patchCheckResults(
   xml: string,
   mode: CheckResultPatch['mode'],
 ): { xml: string; count: number } {
-  const comparisonsMatch = xml.match(/<COMPARISONS\b[^>]*>[\s\S]*?<\/COMPARISONS>/i)
-  if (!comparisonsMatch || comparisonsMatch.index === undefined) return { xml, count: 0 }
-
   let count = 0
-  const comparisonsBlock = comparisonsMatch[0].replace(
-    /(<NAME\b[^>]*\bcheckType\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi,
-    (_match, before, doubleQuotedValue, singleQuotedValue) => {
-      const quote = doubleQuotedValue !== undefined ? '"' : "'"
-      const value = doubleQuotedValue ?? singleQuotedValue
+  const patchedXml = xml.replace(
+    /<(COMPARISONS|INITIALSETUP)\b[^>]*>[\s\S]*?<\/\1>/gi,
+    (sectionBlock) =>
+      sectionBlock.replace(
+        /(<NAME\b[^>]*\bcheckType\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi,
+        (_match, before, doubleQuotedValue, singleQuotedValue) => {
+          const quote = doubleQuotedValue !== undefined ? '"' : "'"
+          const value = doubleQuotedValue ?? singleQuotedValue
 
-      if (mode === 'enable' && value === CHECK_TYPE_DISABLED) {
-        count++
-        return `${before}${quote}${CHECK_TYPE_GRADED}${quote}`
-      }
-      if (
-        mode === 'disable' &&
-        (value === CHECK_TYPE_GRADED || value === CHECK_TYPE_ALTERNATIVE)
-      ) {
-        count++
-        return `${before}${quote}${CHECK_TYPE_DISABLED}${quote}`
-      }
-      return `${before}${quote}${value}${quote}`
-    },
+          if (mode === 'enable' && value === CHECK_TYPE_DISABLED) {
+            count++
+            return `${before}${quote}${CHECK_TYPE_GRADED}${quote}`
+          }
+          if (
+            mode === 'disable' &&
+            (value === CHECK_TYPE_GRADED || value === CHECK_TYPE_ALTERNATIVE)
+          ) {
+            count++
+            return `${before}${quote}${CHECK_TYPE_DISABLED}${quote}`
+          }
+          return `${before}${quote}${value}${quote}`
+        },
+      ),
   )
 
   if (count === 0) return { xml, count }
-
-  const start = comparisonsMatch.index
-  const end = start + comparisonsMatch[0].length
-  const patchedXml = `${xml.slice(0, start)}${comparisonsBlock}${xml.slice(end)}`
   return { xml: patchedXml, count }
 }
 
