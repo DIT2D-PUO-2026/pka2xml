@@ -70,9 +70,10 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { inflate, deflate } from 'pako'
-import { removeTraces, verifyNoWatermark } from './watermarkUtils'
+import { inflate } from 'pako'
+import { removeTraces } from './watermarkUtils'
 import { postJsonWithUploadProgress, toUploadStatusMessage } from './uploadWithProgress'
+import { encryptPka } from './pkaEncrypt'
 
 const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
 const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
@@ -190,23 +191,16 @@ async function cleanTraces() {
       return
     }
 
-    // Step 4: re-compress and re-encrypt
+    // Step 4: re-encrypt locally — no backend call, so no watermark can be re-injected
     const encodedXml = new TextEncoder().encode(cleanedXml)
-    const compressed = deflate(encodedXml)
-    const compressedBlob = new Blob([compressed], { type: 'application/octet-stream' })
-    const compressedB64 = await toBase64(compressedBlob)
-    const cleanedB64 = await uploadAction({ file: compressedB64, action: 'encode', length: encodedXml.length })
-
-    // Step 5: verify backend did not re-inject traces during encode.
-    await verifyNoWatermark(API_URL, cleanedB64)
-
-    const cleanedBlob = await b64toBlob(cleanedB64)
+    const pkaBinary = encryptPka(encodedXml)
+    const cleanedBlob = new Blob([pkaBinary], { type: 'application/octet-stream' })
 
     const origExt = selectedFile.value.name.match(/\.(pka|pkt)$/i)?.[1]?.toLowerCase() ?? 'pka'
     const outName = selectedFile.value.name.replace(/\.(pka|pkt)$/i, `.cleaned.${origExt}`)
     triggerDownload(cleanedBlob, outName)
 
-    successMsg.value = `Traces removed and verified! "${outName}" has been downloaded.`
+    successMsg.value = `Traces removed! "${outName}" has been downloaded.`
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     errorMsg.value = `Failed to clean traces: ${msg}. Make sure the file is a valid Packet Tracer .pka/.pkt file.`

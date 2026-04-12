@@ -199,9 +199,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { inflate, deflate } from 'pako'
-import { removeTraces, verifyNoWatermark } from './watermarkUtils'
+import { inflate } from 'pako'
+import { removeTraces } from './watermarkUtils'
 import { postJsonWithUploadProgress, toUploadStatusMessage } from './uploadWithProgress'
+import { encryptPka } from './pkaEncrypt'
 
 const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
 const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
@@ -441,17 +442,10 @@ async function applyPatches() {
     // Strip any remaining traces before compressing and re-encrypting
     const { xml: cleanedXml } = removeTraces(xml)
 
-    // Compress and re-encrypt
+    // Compress and re-encrypt locally — no backend call, so no watermark can be re-injected
     const encodedXml = new TextEncoder().encode(cleanedXml)
-    const compressed = deflate(encodedXml)
-    const compressedBlob = new Blob([compressed], { type: 'application/octet-stream' })
-    const b64 = await toBase64(compressedBlob)
-    const resultB64 = await uploadAction({ file: b64, action: 'encode', length: encodedXml.length })
-
-    // Verify the backend did not re-inject traces during encode
-    await verifyNoWatermark(API_URL, resultB64)
-
-    const resultBlob = await b64toBlob(resultB64)
+    const pkaBinary = encryptPka(encodedXml)
+    const resultBlob = new Blob([pkaBinary], { type: 'application/octet-stream' })
 
     const origExt = selectedFile.value.name.match(/\.(pka|pkt)$/i)?.[1]?.toLowerCase() ?? 'pka'
     const outName = selectedFile.value.name.replace(/\.(pka|pkt)$/i, `.patched.${origExt}`)
