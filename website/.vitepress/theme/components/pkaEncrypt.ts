@@ -126,8 +126,11 @@ function ctrEncrypt(
     tfBlockEncrypt(counter, 0, keystream, 0, session)
     const len = Math.min(16, plaintext.length - i)
     for (let j = 0; j < len; j++) ciphertext[i + j] = plaintext[i + j] ^ keystream[j]
-    // Increment counter as a 128-bit big-endian integer (last byte = LSB)
-    for (let j = 15; j >= 0; j--) if (++counter[j] !== 0) break
+    // Increment counter as a 128-bit big-endian integer (last byte = LSB, carry propagates left)
+    for (let j = 15; j >= 0; j--) {
+      counter[j]++
+      if (counter[j] !== 0) break // No carry; stop propagating
+    }
   }
 
   return ciphertext
@@ -204,6 +207,10 @@ export function encryptPka(xmlBytes: Uint8Array): Uint8Array {
   const encrypted = eaxEncrypt(stage2, PKA_NONCE, session)
 
   // Stage 4: Reverse-order XOR — out[len-1-i] = enc[i] ^ ((len - i*len) | 0) & 0xFF
+  // Formula from include/pka2xml.hpp: `output[length + ~i] = encrypted[i] ^ (length - i * length)`
+  // (length + ~i) == (length - 1 - i), and (length - i*length) == length*(1-i).
+  // Math.imul gives 32-bit multiplication matching C++ int overflow; |0 keeps it signed;
+  // &0xFF extracts the low byte — identical to C++'s implicit char truncation on XOR.
   const len4 = encrypted.length
   const output = new Uint8Array(len4)
   for (let i = 0; i < len4; i++) {
