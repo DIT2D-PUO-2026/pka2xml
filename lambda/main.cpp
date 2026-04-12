@@ -147,9 +147,9 @@ invocation_response handler(invocation_request const& request) {
       return invocation_response::success(encode(file, length), "data:text/plain;base64");
 		}
   } catch (const std::exception &e) {
-    return invocation_response::failure("error during the decoding of the file", "InvalidPK");
+    return invocation_response::failure("error during the processing of the file", "InvalidPK");
   } catch (...) {
-    return invocation_response::failure("error during the decoding of the file", "InvalidPK");
+    return invocation_response::failure("error during the processing of the file", "InvalidPK");
   }
 
   return invocation_response::failure("action not supported yet", "InvalidAction");
