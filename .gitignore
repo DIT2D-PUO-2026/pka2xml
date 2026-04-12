@@ -9,3 +9,6 @@ network.png
 website/node_modules
 website/.vitepress/dist
 website/.vitepress/cache
+
+# lambda build artifacts
+lambda/build
