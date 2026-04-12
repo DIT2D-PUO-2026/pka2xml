@@ -153,6 +153,39 @@
           </div>
         </div>
 
+        <!-- CHECK RESULT -->
+        <div class="patch-card" :class="{ 'patch-card--active': patches.checkResult.enabled }">
+          <label class="patch-card__header">
+            <input
+              type="checkbox"
+              v-model="patches.checkResult.enabled"
+              :disabled="!hasAssessmentItems"
+            />
+            <span class="patch-card__title">Check Results Feature</span>
+          </label>
+          <p class="patch-card__desc">
+            Enable or disable scoring checks by updating <code>checkType</code> values in
+            <code>COMPARISONS</code>.
+          </p>
+          <div v-if="hasAssessmentItems" class="field-hint">
+            Found <strong>{{ assessmentSummary.comparisonItems }}</strong> comparison items
+            (<strong>{{ assessmentSummary.enabledCheckItems }}</strong> currently check-enabled).
+          </div>
+          <div v-else class="field-hint">
+            No comparison items were found in <code>COMPARISONS</code>.
+          </div>
+          <div v-if="patches.checkResult.enabled" class="patch-card__body">
+            <label class="toggle-label">
+              <input type="radio" value="enable" v-model="patches.checkResult.mode" />
+              <span>Enable check results (set checkType <code>0</code> → <code>1</code>)</span>
+            </label>
+            <label class="toggle-label">
+              <input type="radio" value="disable" v-model="patches.checkResult.mode" />
+              <span>Disable check results (set checkType <code>1</code> or <code>2</code> → <code>0</code>)</span>
+            </label>
+          </div>
+        </div>
+
       </div>
 
       <!-- Validation warning -->
@@ -232,24 +265,47 @@ interface ExpiredPatch {
   value: boolean
 }
 
+interface CheckResultPatch {
+  enabled: boolean
+  mode: 'enable' | 'disable'
+}
+
+interface AssessmentSummary {
+  comparisonItems: number
+  enabledCheckItems: number
+}
+
 const patches = reactive<{
   expired: ExpiredPatch
   defaultTime: TimePatch
   timeLeft: TimePatch
+  checkResult: CheckResultPatch
 }>({
   expired: { enabled: false, value: false },
   defaultTime: { enabled: false, h: 0, m: 0, s: 0 },
   timeLeft: { enabled: false, h: 0, m: 0, s: 0 },
+  checkResult: { enabled: false, mode: 'enable' },
 })
 
-const anyPatchEnabled = computed(
-  () => patches.expired.enabled || patches.defaultTime.enabled || patches.timeLeft.enabled
+const enabledPatchCount = computed(
+  () => [
+    patches.expired.enabled,
+    patches.defaultTime.enabled,
+    patches.timeLeft.enabled,
+    patches.checkResult.enabled,
+  ].filter(Boolean).length,
 )
+const anyPatchEnabled = computed(() => enabledPatchCount.value > 0)
+const assessmentSummary = ref<AssessmentSummary>({ comparisonItems: 0, enabledCheckItems: 0 })
+const hasAssessmentItems = computed(() => assessmentSummary.value.comparisonItems > 0)
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 const SECONDS_PER_HOUR = 3600
 const SECONDS_PER_MINUTE = 60
 const MS_PER_SECOND = 1000
+const CHECK_TYPE_DISABLED = '0'
+const CHECK_TYPE_GRADED = '1'
+const CHECK_TYPE_ALTERNATIVE = '2'
 
 function toMs(t: TimePatch): number {
   return ((t.h * SECONDS_PER_HOUR) + (t.m * SECONDS_PER_MINUTE) + t.s) * MS_PER_SECOND
@@ -296,6 +352,54 @@ function replaceXmlAttr(xml: string, attr: string, newValue: string): { xml: str
   return { xml: result, count }
 }
 
+function summarizeAssessmentItems(xml: string): AssessmentSummary {
+  const comparisonsMatch = xml.match(/<COMPARISONS\b[^>]*>([\s\S]*?)<\/COMPARISONS>/i)
+  if (!comparisonsMatch) return { comparisonItems: 0, enabledCheckItems: 0 }
+
+  const comparisonsXml = comparisonsMatch[1]
+  const nameWithCheckType = Array.from(comparisonsXml.matchAll(/<NAME\b[^>]*\bcheckType="([^"]*)"[^>]*>/gi))
+
+  const comparisonItems = nameWithCheckType.length
+  const enabledCheckItems = nameWithCheckType.filter(
+    (match) => match[1] === CHECK_TYPE_GRADED || match[1] === CHECK_TYPE_ALTERNATIVE,
+  ).length
+  return { comparisonItems, enabledCheckItems }
+}
+
+function patchCheckResults(
+  xml: string,
+  mode: CheckResultPatch['mode'],
+): { xml: string; count: number } {
+  const comparisonsMatch = xml.match(/<COMPARISONS\b[^>]*>[\s\S]*?<\/COMPARISONS>/i)
+  if (!comparisonsMatch || comparisonsMatch.index === undefined) return { xml, count: 0 }
+
+  let count = 0
+  const comparisonsBlock = comparisonsMatch[0].replace(
+    /(<NAME\b[^>]*\bcheckType=")([^"]*)(")/gi,
+    (_match, before, value, after) => {
+      if (mode === 'enable' && value === CHECK_TYPE_DISABLED) {
+        count++
+        return `${before}${CHECK_TYPE_GRADED}${after}`
+      }
+      if (
+        mode === 'disable' &&
+        (value === CHECK_TYPE_GRADED || value === CHECK_TYPE_ALTERNATIVE)
+      ) {
+        count++
+        return `${before}${CHECK_TYPE_DISABLED}${after}`
+      }
+      return `${before}${value}${after}`
+    },
+  )
+
+  if (count === 0) return { xml, count }
+
+  const start = comparisonsMatch.index
+  const end = start + comparisonsMatch[0].length
+  const patchedXml = `${xml.slice(0, start)}${comparisonsBlock}${xml.slice(end)}`
+  return { xml: patchedXml, count }
+}
+
 // ── file input ───────────────────────────────────────────────────────────────
 function triggerFileInput() { fileInput.value?.click() }
 
@@ -332,6 +436,9 @@ function resetPatches() {
   patches.timeLeft.h = 0
   patches.timeLeft.m = 0
   patches.timeLeft.s = 0
+  patches.checkResult.enabled = false
+  patches.checkResult.mode = 'enable'
+  assessmentSummary.value = { comparisonItems: 0, enabledCheckItems: 0 }
 }
 
 function reset() {
@@ -385,6 +492,7 @@ async function decryptFile() {
     // they are not present when the patched file is re-encrypted.
     const { xml: cleanedXml } = removeTraces(rawXml)
     xmlContent.value = cleanedXml
+    assessmentSummary.value = summarizeAssessmentItems(cleanedXml)
 
     step.value = 'patch'
   } catch (err: unknown) {
@@ -434,8 +542,22 @@ async function applyPatches() {
       xml = patched
       if (count === 0) noMatch.push('Time Left (COUNTDOWNLEFT not found)')
     }
+    if (patches.checkResult.enabled) {
+      if (!hasAssessmentItems.value) {
+        throw new Error('Check Results cannot be enabled because no assessment items were found in COMPARISONS.')
+      }
 
-    if (noMatch.length === (patches.expired.enabled ? 1 : 0) + (patches.defaultTime.enabled ? 1 : 0) + (patches.timeLeft.enabled ? 1 : 0)) {
+      const { xml: patched, count } = patchCheckResults(xml, patches.checkResult.mode)
+      xml = patched
+      if (count === 0) {
+        const modeLabel = patches.checkResult.mode === 'enable'
+          ? 'Check Results Enable (no checkType="0" items found)'
+          : 'Check Results Disable (no checkType="1" or "2" items found)'
+        noMatch.push(modeLabel)
+      }
+    }
+
+    if (noMatch.length === enabledPatchCount.value) {
       throw new Error(`None of the selected attributes were found in the file. Make sure it is a valid Packet Tracer activity file with countdown settings.`)
     }
 
