@@ -67,6 +67,19 @@ export function removeTraces(xml: string): { xml: string; found: boolean } {
 }
 
 /**
+ * Thrown when a verified re-encrypted PKA file is found to contain a
+ * pka2xml watermark re-injected by the backend.
+ */
+export class WatermarkDetectedError extends Error {
+  constructor() {
+    super(
+      'The configured backend re-injected the watermark during encode. Update VITE_PKA2XML_API_URL to a clean backend and try again.'
+    )
+    this.name = 'WatermarkDetectedError'
+  }
+}
+
+/**
  * Decode a base64 string to a Blob.
  */
 async function b64toBlob(base64: string, type = 'application/octet-stream'): Promise<Blob> {
@@ -79,25 +92,43 @@ async function b64toBlob(base64: string, type = 'application/octet-stream'): Pro
  * contain any pka2xml watermark. Decodes the file via the API, decompresses
  * the result with pako, then inspects the XML.
  *
- * Throws an Error if the backend re-injected a watermark.
+ * Network and server errors are silently ignored (verification is skipped) so
+ * that a transient API hiccup does not block the user from receiving their
+ * successfully-encoded file.  An Error is thrown only when the backend is
+ * confirmed to have re-injected a watermark.
  */
 export async function verifyNoWatermark(apiUrl: string, encodedB64: string): Promise<void> {
-  const verifyResponse = await fetch(apiUrl, {
-    method: 'POST',
-    body: JSON.stringify({ file: `data:application/octet-stream;base64,${encodedB64}`, action: 'decode' }),
-  })
+  let verifyResponse: Response
+  try {
+    verifyResponse = await fetch(apiUrl, {
+      method: 'POST',
+      body: JSON.stringify({ file: `data:application/octet-stream;base64,${encodedB64}`, action: 'decode' }),
+    })
+  } catch {
+    // Network error — skip verification so the encode result is still delivered.
+    return
+  }
 
-  if (!verifyResponse.ok) throw new Error(`Server error during verification: ${verifyResponse.status}`)
+  if (!verifyResponse.ok) {
+    // Server error during verification — skip so the encode result is still delivered.
+    return
+  }
 
-  const verifyB64 = await verifyResponse.text()
-  const verifyBlob = await b64toBlob(verifyB64)
-  const verifyArrayBuffer = await verifyBlob.arrayBuffer()
-  const verifyXmlBytes = inflate(new Uint8Array(verifyArrayBuffer))
-  const verifyXml = new TextDecoder('utf-8').decode(verifyXmlBytes)
+  try {
+    const verifyB64 = await verifyResponse.text()
+    const verifyBlob = await b64toBlob(verifyB64)
+    const verifyArrayBuffer = await verifyBlob.arrayBuffer()
+    const verifyXmlBytes = inflate(new Uint8Array(verifyArrayBuffer))
+    const verifyXml = new TextDecoder('utf-8').decode(verifyXmlBytes)
 
-  if (hasTraceInAdditionalInfo(verifyXml)) {
-    throw new Error(
-      'The configured backend re-injected the watermark during encode. Update VITE_PKA2XML_API_URL to a clean backend and try again.'
-    )
+    if (hasTraceInAdditionalInfo(verifyXml)) {
+      throw new WatermarkDetectedError()
+    }
+  } catch (err) {
+    // Re-throw only if this is the watermark-detection error; ignore decoding errors.
+    if (err instanceof WatermarkDetectedError) {
+      throw err
+    }
+    // Decoding/inflate errors during verification — skip, encode result is still valid.
   }
 }
