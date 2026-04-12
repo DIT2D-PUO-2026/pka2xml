@@ -85,7 +85,8 @@ async function Encode() {
   document.querySelector('#loading').style["display"] = "inline";
   document.querySelector('#error').style["display"] = "none";
 
-  const compressed = pako.deflate(new TextEncoder().encode(str));
+  const encoded = new TextEncoder().encode(str);
+  const compressed = pako.deflate(encoded);
   const b = new Blob([compressed], { type: 'application/octet-stream' });
 
   fetch('https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml', {
@@ -93,7 +94,7 @@ async function Encode() {
     body: JSON.stringify({
       file: await toBase64(b),
       action: 'encode',
-      length: str.length,
+      length: encoded.length,
     })
   }).then(response => response.text())
   .then(b64toBlob)
