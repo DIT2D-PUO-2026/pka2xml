@@ -63,7 +63,16 @@
     <!-- Status -->
     <div v-if="loading" class="status-box status-loading">
       <div class="spinner"></div>
-      <span>Processing <strong>{{ selectedFile?.name }}</strong>… this may take a few seconds.</span>
+      <span>
+        {{ uploadStatus || `Processing ${selectedFile?.name}… this may take a few seconds.` }}
+      </span>
+    </div>
+
+    <div v-if="loading" class="upload-progress">
+      <div class="upload-progress__track">
+        <div class="upload-progress__fill" :style="{ width: `${uploadProgress}%` }"></div>
+      </div>
+      <span class="upload-progress__text">{{ uploadProgress }}%</span>
     </div>
 
     <div v-if="errorMsg" class="status-box status-error">
@@ -91,6 +100,7 @@
 import { ref, computed } from 'vue'
 import { inflate, deflate } from 'pako'
 import { removeTraces, verifyNoWatermark } from './watermarkUtils'
+import { postJsonWithUploadProgress, toUploadStatusMessage } from './uploadWithProgress'
 
 const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com/default/pka2xml'
 const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
@@ -105,6 +115,8 @@ const successMsg = ref('')
 const xmlPreview = ref('')
 const isDragging = ref(false)
 const copied = ref(false)
+const uploadProgress = ref(0)
+const uploadStatus = ref('')
 
 const canDecrypt = computed(() =>
   !!selectedFile.value &&
@@ -143,6 +155,8 @@ function reset() {
   errorMsg.value = ''
   successMsg.value = ''
   xmlPreview.value = ''
+  uploadProgress.value = 0
+  uploadStatus.value = ''
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -175,21 +189,23 @@ async function doAction(action: 'decode' | 'encode' | 'retrofit') {
   errorMsg.value = ''
   successMsg.value = ''
   xmlPreview.value = ''
+  uploadProgress.value = 0
+  uploadStatus.value = 'Preparing file for upload…'
 
   try {
     const file = selectedFile.value
+    const uploadAction = async (payload: unknown): Promise<string> => {
+      const response = await postJsonWithUploadProgress(API_URL, payload, (state) => {
+        uploadProgress.value = state.percent
+        uploadStatus.value = toUploadStatusMessage(state)
+      })
+      if (!response.ok) throw new Error(`Server error: ${response.status}`)
+      return response.body
+    }
 
     if (action === 'decode') {
       const b64 = await toBase64(file)
-
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ file: b64, action: 'decode' }),
-      })
-
-      if (!response.ok) throw new Error(`Server error: ${response.status}`)
-
-      const resultB64 = await response.text()
+      const resultB64 = await uploadAction({ file: b64, action: 'decode' })
       const blob = await b64toBlob(resultB64)
       const arrayBuffer = await blob.arrayBuffer()
 
@@ -214,15 +230,7 @@ async function doAction(action: 'decode' | 'encode' | 'retrofit') {
         : `Decrypted successfully! Your file "${outXmlName}" has been downloaded.`
     } else if (action === 'retrofit') {
       const b64 = await toBase64(file)
-
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ file: b64, action: 'retrofit' }),
-      })
-
-      if (!response.ok) throw new Error(`Server error: ${response.status}`)
-
-      const resultB64 = await response.text()
+      const resultB64 = await uploadAction({ file: b64, action: 'retrofit' })
       const resultBlob = await b64toBlob(resultB64)
 
       triggerDownload(resultBlob, file.name)
@@ -239,15 +247,7 @@ async function doAction(action: 'decode' | 'encode' | 'retrofit') {
       const compressedBlob = new Blob([compressed], { type: 'application/octet-stream' })
 
       const b64 = await toBase64(compressedBlob)
-
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ file: b64, action: 'encode', length: encodedXml.length }),
-      })
-
-      if (!response.ok) throw new Error(`Server error: ${response.status}`)
-
-      const resultB64 = await response.text()
+      const resultB64 = await uploadAction({ file: b64, action: 'encode', length: encodedXml.length })
 
       // Verify the backend did not re-inject traces during encode
       await verifyNoWatermark(API_URL, resultB64)
@@ -261,6 +261,8 @@ async function doAction(action: 'decode' | 'encode' | 'retrofit') {
     errorMsg.value = `Operation failed: ${msg}. Make sure the file is a valid Packet Tracer file and try again.`
   } finally {
     loading.value = false
+    uploadProgress.value = 0
+    uploadStatus.value = ''
   }
 }
 
@@ -307,3 +309,33 @@ async function copyXml() {
    }
 }
 </script>
+
+<style scoped>
+.upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.upload-progress__track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--vp-c-bg-soft);
+  overflow: hidden;
+}
+
+.upload-progress__fill {
+  height: 100%;
+  background: var(--vp-c-brand-1);
+  transition: width 0.2s ease;
+}
+
+.upload-progress__text {
+  min-width: 3rem;
+  text-align: right;
+  font-size: 0.85rem;
+  color: var(--vp-c-text-2);
+}
+</style>
