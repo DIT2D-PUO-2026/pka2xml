@@ -362,13 +362,10 @@ function summarizeAssessmentItems(xml: string): AssessmentSummary {
   )
 
   const comparisonItems = nameWithCheckType.length
-  const enabledCheckItems = nameWithCheckType.filter(
-    (match) =>
-      match[1] === CHECK_TYPE_GRADED ||
-      match[1] === CHECK_TYPE_ALTERNATIVE ||
-      match[2] === CHECK_TYPE_GRADED ||
-      match[2] === CHECK_TYPE_ALTERNATIVE,
-  ).length
+  const enabledCheckItems = nameWithCheckType.filter((match) => {
+    const checkType = match[1] ?? match[2]
+    return checkType === CHECK_TYPE_GRADED || checkType === CHECK_TYPE_ALTERNATIVE
+  }).length
   return { comparisonItems, enabledCheckItems }
 }
 
