@@ -12,6 +12,7 @@
     "vitepress": "^1.6.3"
   },
   "dependencies": {
-    "pako": "^2.1.0"
+    "pako": "^2.1.0",
+    "twofish-ts": "^1.0.2"
   }
 }
