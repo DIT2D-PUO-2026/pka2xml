@@ -357,12 +357,15 @@ function summarizeAssessmentItems(xml: string): AssessmentSummary {
   if (!comparisonsMatch) return { comparisonItems: 0, enabledCheckItems: 0 }
 
   const comparisonsXml = comparisonsMatch[1]
-  const nameWithCheckType = Array.from(comparisonsXml.matchAll(/<NAME\b[^>]*\bcheckType="([^"]*)"[^>]*>/gi))
+  const nameWithCheckType = Array.from(
+    comparisonsXml.matchAll(/<NAME\b[^>]*\bcheckType\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>/gi),
+  )
 
   const comparisonItems = nameWithCheckType.length
-  const enabledCheckItems = nameWithCheckType.filter(
-    (match) => match[1] === CHECK_TYPE_GRADED || match[1] === CHECK_TYPE_ALTERNATIVE,
-  ).length
+  const enabledCheckItems = nameWithCheckType.filter((match) => {
+    const checkType = match[1] ?? match[2]
+    return checkType === CHECK_TYPE_GRADED || checkType === CHECK_TYPE_ALTERNATIVE
+  }).length
   return { comparisonItems, enabledCheckItems }
 }
 
@@ -375,20 +378,23 @@ function patchCheckResults(
 
   let count = 0
   const comparisonsBlock = comparisonsMatch[0].replace(
-    /(<NAME\b[^>]*\bcheckType=")([^"]*)(")/gi,
-    (_match, before, value, after) => {
+    /(<NAME\b[^>]*\bcheckType\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi,
+    (_match, before, doubleQuotedValue, singleQuotedValue) => {
+      const quote = doubleQuotedValue !== undefined ? '"' : "'"
+      const value = doubleQuotedValue ?? singleQuotedValue
+
       if (mode === 'enable' && value === CHECK_TYPE_DISABLED) {
         count++
-        return `${before}${CHECK_TYPE_GRADED}${after}`
+        return `${before}${quote}${CHECK_TYPE_GRADED}${quote}`
       }
       if (
         mode === 'disable' &&
         (value === CHECK_TYPE_GRADED || value === CHECK_TYPE_ALTERNATIVE)
       ) {
         count++
-        return `${before}${CHECK_TYPE_DISABLED}${after}`
+        return `${before}${quote}${CHECK_TYPE_DISABLED}${quote}`
       }
-      return `${before}${value}${after}`
+      return `${before}${quote}${value}${quote}`
     },
   )
 
