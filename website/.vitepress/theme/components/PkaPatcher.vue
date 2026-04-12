@@ -159,7 +159,6 @@
             <input
               type="checkbox"
               v-model="patches.checkResult.enabled"
-              :disabled="!hasAssessmentItems"
             />
             <span class="patch-card__title">Check Results Feature</span>
           </label>
@@ -549,10 +548,6 @@ async function applyPatches() {
       if (count === 0) noMatch.push('Time Left (COUNTDOWNLEFT not found)')
     }
     if (patches.checkResult.enabled) {
-      if (!hasAssessmentItems.value) {
-        throw new Error('Check Results cannot be enabled because no assessment items were found in COMPARISONS.')
-      }
-
       const { xml: patched, count } = patchCheckResults(xml, patches.checkResult.mode)
       xml = patched
       if (count === 0) {
