@@ -167,9 +167,12 @@
             Enable or disable scoring checks by updating <code>checkType</code> values in
             <code>COMPARISONS</code>.
           </p>
-          <div class="field-hint">
+          <div v-if="hasAssessmentItems" class="field-hint">
             Found <strong>{{ assessmentSummary.comparisonItems }}</strong> comparison items
-            (<strong>{{ assessmentSummary.gradedItems }}</strong> currently graded).
+            (<strong>{{ assessmentSummary.enabledCheckItems }}</strong> currently check-enabled).
+          </div>
+          <div v-else class="field-hint">
+            No comparison items were found in <code>COMPARISONS</code>.
           </div>
           <div v-if="patches.checkResult.enabled" class="patch-card__body">
             <label class="toggle-label">
@@ -178,11 +181,8 @@
             </label>
             <label class="toggle-label">
               <input type="radio" value="disable" v-model="patches.checkResult.mode" />
-              <span>Disable check results (set checkType <code>1/2</code> → <code>0</code>)</span>
+              <span>Disable check results (set checkType <code>1</code> or <code>2</code> → <code>0</code>)</span>
             </label>
-          </div>
-          <div v-else-if="!hasAssessmentItems" class="field-hint">
-            No assessment items were found in <code>COMPARISONS</code>, so enabling check results is not useful.
           </div>
         </div>
 
@@ -272,7 +272,7 @@ interface CheckResultPatch {
 
 interface AssessmentSummary {
   comparisonItems: number
-  gradedItems: number
+  enabledCheckItems: number
 }
 
 const patches = reactive<{
@@ -287,16 +287,25 @@ const patches = reactive<{
   checkResult: { enabled: false, mode: 'enable' },
 })
 
-const anyPatchEnabled = computed(
-  () => patches.expired.enabled || patches.defaultTime.enabled || patches.timeLeft.enabled || patches.checkResult.enabled
+const enabledPatchCount = computed(
+  () => [
+    patches.expired.enabled,
+    patches.defaultTime.enabled,
+    patches.timeLeft.enabled,
+    patches.checkResult.enabled,
+  ].filter(Boolean).length,
 )
-const assessmentSummary = ref<AssessmentSummary>({ comparisonItems: 0, gradedItems: 0 })
+const anyPatchEnabled = computed(() => enabledPatchCount.value > 0)
+const assessmentSummary = ref<AssessmentSummary>({ comparisonItems: 0, enabledCheckItems: 0 })
 const hasAssessmentItems = computed(() => assessmentSummary.value.comparisonItems > 0)
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 const SECONDS_PER_HOUR = 3600
 const SECONDS_PER_MINUTE = 60
 const MS_PER_SECOND = 1000
+const CHECK_TYPE_DISABLED = '0'
+const CHECK_TYPE_GRADED = '1'
+const CHECK_TYPE_ALTERNATIVE = '2'
 
 function toMs(t: TimePatch): number {
   return ((t.h * SECONDS_PER_HOUR) + (t.m * SECONDS_PER_MINUTE) + t.s) * MS_PER_SECOND
@@ -345,14 +354,16 @@ function replaceXmlAttr(xml: string, attr: string, newValue: string): { xml: str
 
 function summarizeAssessmentItems(xml: string): AssessmentSummary {
   const comparisonsMatch = xml.match(/<COMPARISONS\b[^>]*>([\s\S]*?)<\/COMPARISONS>/i)
-  if (!comparisonsMatch) return { comparisonItems: 0, gradedItems: 0 }
+  if (!comparisonsMatch) return { comparisonItems: 0, enabledCheckItems: 0 }
 
   const comparisonsXml = comparisonsMatch[1]
   const nameWithCheckType = Array.from(comparisonsXml.matchAll(/<NAME\b[^>]*\bcheckType="([^"]*)"[^>]*>/gi))
 
   const comparisonItems = nameWithCheckType.length
-  const gradedItems = nameWithCheckType.filter((match) => match[1] === '1' || match[1] === '2').length
-  return { comparisonItems, gradedItems }
+  const enabledCheckItems = nameWithCheckType.filter(
+    (match) => match[1] === CHECK_TYPE_GRADED || match[1] === CHECK_TYPE_ALTERNATIVE,
+  ).length
+  return { comparisonItems, enabledCheckItems }
 }
 
 function patchCheckResults(
@@ -366,13 +377,16 @@ function patchCheckResults(
   const comparisonsBlock = comparisonsMatch[0].replace(
     /(<NAME\b[^>]*\bcheckType=")([^"]*)(")/gi,
     (_match, before, value, after) => {
-      if (mode === 'enable' && value === '0') {
+      if (mode === 'enable' && value === CHECK_TYPE_DISABLED) {
         count++
-        return `${before}1${after}`
+        return `${before}${CHECK_TYPE_GRADED}${after}`
       }
-      if (mode === 'disable' && (value === '1' || value === '2')) {
+      if (
+        mode === 'disable' &&
+        (value === CHECK_TYPE_GRADED || value === CHECK_TYPE_ALTERNATIVE)
+      ) {
         count++
-        return `${before}0${after}`
+        return `${before}${CHECK_TYPE_DISABLED}${after}`
       }
       return `${before}${value}${after}`
     },
@@ -424,7 +438,7 @@ function resetPatches() {
   patches.timeLeft.s = 0
   patches.checkResult.enabled = false
   patches.checkResult.mode = 'enable'
-  assessmentSummary.value = { comparisonItems: 0, gradedItems: 0 }
+  assessmentSummary.value = { comparisonItems: 0, enabledCheckItems: 0 }
 }
 
 function reset() {
@@ -538,18 +552,12 @@ async function applyPatches() {
       if (count === 0) {
         const modeLabel = patches.checkResult.mode === 'enable'
           ? 'Check Results Enable (no checkType="0" items found)'
-          : 'Check Results Disable (no checkType="1/2" items found)'
+          : 'Check Results Disable (no checkType="1" or "2" items found)'
         noMatch.push(modeLabel)
       }
     }
 
-    if (
-      noMatch.length ===
-      (patches.expired.enabled ? 1 : 0) +
-      (patches.defaultTime.enabled ? 1 : 0) +
-      (patches.timeLeft.enabled ? 1 : 0) +
-      (patches.checkResult.enabled ? 1 : 0)
-    ) {
+    if (noMatch.length === enabledPatchCount.value) {
       throw new Error(`None of the selected attributes were found in the file. Make sure it is a valid Packet Tracer activity file with countdown settings.`)
     }
 
