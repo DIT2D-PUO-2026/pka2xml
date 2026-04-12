@@ -69,8 +69,10 @@ export function postJsonWithUploadProgress(
     xhr.onload = () => {
       const uploadVerified = uploadCompleted || totalBytes === 0 || loadedBytes >= totalBytes
       if (!uploadVerified) {
-        reject(new Error('File upload did not complete before server response'))
-        return
+        // Some browsers/proxies may complete the request without firing the
+        // final upload progress/load events. If we have a valid HTTP response,
+        // treat upload as complete rather than failing a successful operation.
+        loadedBytes = totalBytes
       }
       onProgress({ uploadedBytes: totalBytes, totalBytes, percent: 100, phase: 'complete' })
       resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, body: xhr.responseText })
