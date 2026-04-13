@@ -53,6 +53,10 @@ export default defineConfig({
       { text: "Guide", link: "/guide" },
       { text: "Tool", link: "/tool" },
       { text: "Patcher", link: "/patcher" },
+      {
+        text: "Activity Password",
+        link: "/patcher#activity-wizard-password-recovery",
+      },
       { text: "Trace Cleaner", link: "/cleaner" },
       { text: "Assessment Items", link: "/assessment" },
     ],
@@ -70,6 +74,10 @@ export default defineConfig({
         items: [
           { text: "PKA / PKT Converter", link: "/tool" },
           { text: "PKA Patcher", link: "/patcher" },
+          {
+            text: "Activity Wizard Password",
+            link: "/patcher#activity-wizard-password-recovery",
+          },
           { text: "Trace Cleaner", link: "/cleaner" },
           { text: "Assessment Items", link: "/assessment" },
         ],
