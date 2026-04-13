@@ -55,7 +55,7 @@ export default defineConfig({
       { text: "Patcher", link: "/patcher" },
       {
         text: "Activity Password",
-        link: "/patcher#activity-wizard-password-recovery",
+        link: "/activity-password",
       },
       { text: "Trace Cleaner", link: "/cleaner" },
       { text: "Assessment Items", link: "/assessment" },
@@ -76,7 +76,7 @@ export default defineConfig({
           { text: "PKA Patcher", link: "/patcher" },
           {
             text: "Activity Wizard Password",
-            link: "/patcher#activity-wizard-password-recovery",
+            link: "/activity-password",
           },
           { text: "Trace Cleaner", link: "/cleaner" },
           { text: "Assessment Items", link: "/assessment" },
