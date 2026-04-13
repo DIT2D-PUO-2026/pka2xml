@@ -12,6 +12,7 @@
     "vitepress": "^1.6.3"
   },
   "dependencies": {
+    "js-md5": "^0.8.3",
     "pako": "^2.1.0",
     "twofish-ts": "^1.0.2"
   }
