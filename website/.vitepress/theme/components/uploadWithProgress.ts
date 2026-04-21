@@ -44,6 +44,8 @@ export function postJsonWithUploadProgress(
     onProgress({ uploadedBytes: 0, totalBytes, percent: 0, phase: 'uploading' })
 
     xhr.open('POST', url)
+    // Intentionally omit Content-Type so this remains a CORS "simple request"
+    // and does not fail on preflight with strict API Gateway configurations.
 
     xhr.upload.onprogress = (event) => {
       loadedBytes = event.loaded
