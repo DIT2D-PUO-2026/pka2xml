@@ -44,7 +44,6 @@ export function postJsonWithUploadProgress(
     onProgress({ uploadedBytes: 0, totalBytes, percent: 0, phase: 'uploading' })
 
     xhr.open('POST', url)
-    xhr.setRequestHeader('Content-Type', 'application/json')
 
     xhr.upload.onprogress = (event) => {
       loadedBytes = event.loaded
