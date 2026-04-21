@@ -38,10 +38,9 @@ export function postJsonWithUploadProgress(
     const body = JSON.stringify(payload)
     let uploadCompleted = false
     let loadedBytes = 0
-    // Seed progress without allocating an additional full-size byte buffer.
-    // This is an approximation that assumes single-byte chars; progress events
-    // correct totalBytes when the browser exposes precise transfer sizes.
-    let totalBytes = Math.max(body.length, 1)
+    // Seed progress using actual encoded size without allocating an extra
+    // full-size Uint8Array (unlike TextEncoder().encode(body)).
+    let totalBytes = Math.max(new Blob([body]).size, 1)
 
     onProgress({ uploadedBytes: 0, totalBytes, percent: 0, phase: 'uploading' })
 

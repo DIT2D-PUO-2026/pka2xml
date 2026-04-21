@@ -107,8 +107,6 @@ const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com
 const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
 const MAX_PREVIEW_LENGTH = 4000
 const BLOB_URL_REVOKE_DELAY_MS = 10_000
-// Keep String.fromCharCode spread calls comfortably below engine argument limits.
-const BASE64_CONVERSION_CHUNK_SIZE = 32 * 1024
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedFile = ref<File | null>(null)
@@ -173,14 +171,19 @@ function formatSize(bytes: number): string {
 function toBase64(file: File | Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.readAsArrayBuffer(file)
+    reader.readAsDataURL(file)
     reader.onload = () => {
-      const bytes = new Uint8Array(reader.result as ArrayBuffer)
-      const chunks: string[] = []
-      for (let i = 0; i < bytes.length; i += BASE64_CONVERSION_CHUNK_SIZE) {
-        chunks.push(String.fromCharCode(...bytes.subarray(i, i + BASE64_CONVERSION_CHUNK_SIZE)))
+      const result = reader.result
+      if (typeof result !== 'string') {
+        reject(new Error('Failed to read file as data URL'))
+        return
       }
-      resolve(btoa(chunks.join('')))
+      const commaIndex = result.indexOf(',')
+      if (commaIndex === -1) {
+        reject(new Error('Invalid data URL returned while encoding file'))
+        return
+      }
+      resolve(result.slice(commaIndex + 1))
     }
     reader.onerror = (err) => reject(err)
   })
