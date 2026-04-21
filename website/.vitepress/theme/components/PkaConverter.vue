@@ -107,6 +107,8 @@ const DEFAULT_API_URL = 'https://1nlsyfjbcb.execute-api.eu-south-1.amazonaws.com
 const API_URL = ((import.meta.env.VITE_PKA2XML_API_URL as string | undefined) ?? '').trim() || DEFAULT_API_URL
 const MAX_PREVIEW_LENGTH = 4000
 const BLOB_URL_REVOKE_DELAY_MS = 10_000
+// Keep String.fromCharCode spread calls comfortably below engine argument limits.
+const BASE64_CONVERSION_CHUNK_SIZE = 32 * 1024
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedFile = ref<File | null>(null)
@@ -174,14 +176,11 @@ function toBase64(file: File | Blob): Promise<string> {
     reader.readAsArrayBuffer(file)
     reader.onload = () => {
       const bytes = new Uint8Array(reader.result as ArrayBuffer)
-      let binaryString = ''
-      // 32768-byte chunks keep spread-call argument counts within engine limits while
-      // avoiding very small chunks that would add conversion overhead.
-      const chunkSize = 32 * 1024
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        binaryString += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+      const chunks: string[] = []
+      for (let i = 0; i < bytes.length; i += BASE64_CONVERSION_CHUNK_SIZE) {
+        chunks.push(String.fromCharCode(...bytes.subarray(i, i + BASE64_CONVERSION_CHUNK_SIZE)))
       }
-      resolve(btoa(binaryString))
+      resolve(btoa(chunks.join('')))
     }
     reader.onerror = (err) => reject(err)
   })
