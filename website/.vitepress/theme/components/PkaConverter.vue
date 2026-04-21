@@ -167,12 +167,20 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-/** Convert File to data URL (base64) */
+/** Convert File to raw base64 (without data URL prefix). */
 function toBase64(file: File | Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.readAsDataURL(file)
-    reader.onload = () => resolve(reader.result as string)
+    reader.readAsArrayBuffer(file)
+    reader.onload = () => {
+      const bytes = new Uint8Array(reader.result as ArrayBuffer)
+      let binary = ''
+      const chunkSize = 0x8000
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+      }
+      resolve(btoa(binary))
+    }
     reader.onerror = (err) => reject(err)
   })
 }
