@@ -167,12 +167,24 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-/** Convert File to data URL (base64) */
+/** Convert File to raw base64 (without data URL prefix). */
 function toBase64(file: File | Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.readAsDataURL(file)
-    reader.onload = () => resolve(reader.result as string)
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result !== 'string') {
+        reject(new Error('Failed to read file as data URL'))
+        return
+      }
+      const commaIndex = result.indexOf(',')
+      if (commaIndex === -1) {
+        reject(new Error('Invalid data URL returned while encoding file'))
+        return
+      }
+      resolve(result.slice(commaIndex + 1))
+    }
     reader.onerror = (err) => reject(err)
   })
 }

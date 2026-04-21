@@ -36,10 +36,11 @@ export function postJsonWithUploadProgress(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     const body = JSON.stringify(payload)
-    const expectedBytes = new TextEncoder().encode(body).length
     let uploadCompleted = false
     let loadedBytes = 0
-    let totalBytes = expectedBytes
+    // Seed progress using actual encoded size without allocating an extra
+    // full-size Uint8Array (unlike TextEncoder().encode(body)).
+    let totalBytes = Math.max(new Blob([body]).size, 1)
 
     onProgress({ uploadedBytes: 0, totalBytes, percent: 0, phase: 'uploading' })
 
