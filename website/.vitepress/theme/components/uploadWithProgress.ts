@@ -36,12 +36,12 @@ export function postJsonWithUploadProgress(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     const body = JSON.stringify(payload)
-    // JSON body for this upload path is ASCII-only (base64 + JSON syntax),
-    // so string length equals byte length and avoids an extra full-size buffer.
-    const expectedBytes = body.length
     let uploadCompleted = false
     let loadedBytes = 0
-    let totalBytes = expectedBytes
+    // Seed progress without allocating an additional full-size byte buffer.
+    // This is an approximation that assumes single-byte chars; progress events
+    // correct totalBytes when the browser exposes precise transfer sizes.
+    let totalBytes = Math.max(body.length, 1)
 
     onProgress({ uploadedBytes: 0, totalBytes, percent: 0, phase: 'uploading' })
 

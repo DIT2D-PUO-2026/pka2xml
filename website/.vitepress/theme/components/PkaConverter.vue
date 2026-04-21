@@ -174,12 +174,14 @@ function toBase64(file: File | Blob): Promise<string> {
     reader.readAsArrayBuffer(file)
     reader.onload = () => {
       const bytes = new Uint8Array(reader.result as ArrayBuffer)
-      let binary = ''
-      const chunkSize = 0x8000
+      let binaryString = ''
+      // 32768-byte chunks keep spread-call argument counts within engine limits while
+      // avoiding very small chunks that would add conversion overhead.
+      const chunkSize = 32 * 1024
       for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+        binaryString += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
       }
-      resolve(btoa(binary))
+      resolve(btoa(binaryString))
     }
     reader.onerror = (err) => reject(err)
   })
